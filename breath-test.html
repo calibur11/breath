@@ -1,0 +1,604 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>호흡 감지 AI 테스트 (YAMNet vs DSP)</title>
+  <style>
+    :root {
+      --bg: #0b101b;
+      --card: #131b2e;
+      --border: #23304c;
+      --text: #e6edf7;
+      --muted: #8fa3c4;
+      --accent: #5fa8ff;
+      --calm: #4fd1c5;
+      --ai: #b794f4;
+      --warn: #f6ad55;
+      --danger: #fc8181;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      display: flex;
+      justify-content: center;
+      padding: 20px 16px;
+      min-height: 100vh;
+    }
+    .wrap {
+      width: 100%;
+      max-width: 780px;
+      display: flex;
+      flex-direction: column;
+      gap: 16px;
+    }
+    .card {
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: 14px;
+      padding: 18px 20px;
+    }
+    .header-row {
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-start;
+      gap: 12px;
+      flex-wrap: wrap;
+    }
+    h1 { margin: 0 0 6px; font-size: 1.25rem; }
+    .sub { color: var(--muted); font-size: 0.86rem; line-height: 1.5; margin: 0; }
+    .nav-link {
+      color: var(--accent);
+      text-decoration: none;
+      font-size: 0.85rem;
+      padding: 7px 12px;
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      background: #0e1525;
+      white-space: nowrap;
+    }
+    .nav-link:hover { background: #1a2640; }
+    .row { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; }
+    button {
+      border: none;
+      border-radius: 10px;
+      padding: 11px 16px;
+      font-size: 0.94rem;
+      font-weight: 600;
+      cursor: pointer;
+      transition: opacity 0.15s;
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+    }
+    button:hover { opacity: 0.9; }
+    button:disabled { opacity: 0.45; cursor: not-allowed; }
+    .btn-primary { background: var(--accent); color: #07111f; }
+    .btn-stop { background: #e05d6f; color: #fff; }
+    .controls {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(210px, 1fr));
+      gap: 12px;
+      margin-top: 14px;
+    }
+    label.ctrl { display: flex; flex-direction: column; gap: 6px; font-size: 0.83rem; color: var(--muted); }
+    input[type="range"], select {
+      width: 100%;
+      accent-color: var(--accent);
+      background: #0e1525;
+      color: var(--text);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 7px 9px;
+    }
+    .badge {
+      display: inline-block;
+      padding: 4px 10px;
+      border-radius: 999px;
+      font-size: 0.78rem;
+      font-weight: 700;
+      background: #1c2740;
+      color: var(--muted);
+    }
+    .badge.breath { background: rgba(79, 209, 197, 0.18); color: var(--calm); border: 1px solid var(--calm); }
+    .badge.noise { background: rgba(246, 173, 85, 0.18); color: var(--warn); border: 1px solid var(--warn); }
+    .badge.ready { background: rgba(95, 168, 255, 0.18); color: var(--accent); border: 1px solid var(--accent); }
+    canvas {
+      width: 100%;
+      height: 170px;
+      background: #070b13;
+      border-radius: 10px;
+      border: 1px solid var(--border);
+      display: block;
+    }
+    .legend {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 16px;
+      font-size: 0.78rem;
+      color: var(--muted);
+      margin-top: 8px;
+    }
+    .dot { display: inline-block; width: 10px; height: 10px; border-radius: 50%; margin-right: 5px; }
+    .metrics {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+      gap: 10px;
+      margin-top: 12px;
+    }
+    .metric {
+      background: #0d1424;
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 10px 12px;
+    }
+    .metric .k { font-size: 0.74rem; color: var(--muted); }
+    .metric .v { font-size: 1.05rem; font-weight: 700; margin-top: 4px; color: var(--calm); }
+    .metric .v.ai { color: var(--ai); }
+    .bars { display: flex; flex-direction: column; gap: 8px; margin-top: 12px; }
+    .bar-row { display: grid; grid-template-columns: 150px 1fr 48px; gap: 10px; align-items: center; font-size: 0.82rem; }
+    .bar-track { height: 10px; background: #0a101d; border-radius: 6px; overflow: hidden; border: 1px solid var(--border); }
+    .bar-fill { height: 100%; background: var(--accent); transition: width 0.15s ease; }
+    .bar-fill.is-breath { background: var(--calm); }
+    .note {
+      font-size: 0.81rem;
+      color: var(--muted);
+      line-height: 1.5;
+      background: #0d1424;
+      border-left: 3px solid var(--ai);
+      padding: 10px 12px;
+      border-radius: 6px;
+      margin-top: 12px;
+    }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <div class="card">
+      <div class="header-row">
+        <div>
+          <h1>🧪 호흡 감지 테스트 (AI YAMNet vs DSP)</h1>
+          <p class="sub">
+            Google MediaPipe <strong>YAMNet(AudioSet AI)</strong>이 실제 호흡 소리(<code>Breathing/Snoring/Sigh</code>)와
+            생활 잡음(말소리·바스락거림)을 얼마나 잘 구분하는지 실시간으로 검증합니다.
+          </p>
+        </div>
+        <a class="nav-link" href="./index.html">← 수면 사운드 v3로</a>
+      </div>
+      <div class="note">
+        <strong>테스트 팁:</strong> 먼저 <strong>마이크 테스트 시작</strong>을 누른 뒤 ① 가만히 숨 쉬기 → ② 이불/손으로 바스락 소리 내기 → ③ 말하기 순서로 해보세요.
+        AI 호흡 확률이 실제 숨소리에만 반응하는지, <strong>AI 필터링 BPM</strong>이 잡음에 안 흔들리는지 확인할 수 있습니다.
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="row" style="justify-content: space-between;">
+        <div class="row">
+          <button id="startBtn" class="btn-primary" disabled>⏳ AI 모델 불러오는 중...</button>
+          <button id="stopBtn" class="btn-stop" disabled>⏹ 정지</button>
+        </div>
+        <span id="stateBadge" class="badge">모델 초기화 중</span>
+      </div>
+
+      <div class="controls">
+        <label class="ctrl">
+          마이크 장치
+          <select id="micSelect">
+            <option value="">기본 마이크 (자동)</option>
+          </select>
+        </label>
+        <label class="ctrl">
+          AI 호흡 인정 임계값 (<span id="aiThreshVal">20</span>%)
+          <input id="aiThresh" type="range" min="5" max="70" step="5" value="20" />
+        </label>
+        <label class="ctrl">
+          DSP 마이크 감도 (<span id="sensVal">3.0</span>x)
+          <input id="sensitivity" type="range" min="1.0" max="8.0" step="0.2" value="3.0" />
+        </label>
+        <label class="ctrl">
+          배경 음원 테스트 (이어폰 권장)
+          <select id="bgSoundSelect">
+            <option value="">소리 끔 (순수 호흡 인식 테스트)</option>
+            <option value="./sound/dragon-studio-relaxing-rain-444802.mp3">비 소리 (Rain)</option>
+            <option value="./sound/eryliaa-forest-wind-with-birds-singing-364368.mp3">숲 바람과 새소리 (Forest)</option>
+            <option value="./sound/freesound_community-bonfire-6449.mp3">모닥불 소리 (Bonfire)</option>
+          </select>
+        </label>
+      </div>
+    </div>
+
+    <div class="card">
+      <canvas id="scope" width="720" height="170"></canvas>
+      <div class="legend">
+        <span><span class="dot" style="background:#4fd1c5;"></span>DSP 호흡 에너지 (음량 기반)</span>
+        <span><span class="dot" style="background:#b794f4;"></span>YAMNet AI 호흡 확률 (0~100%)</span>
+      </div>
+
+      <div class="metrics">
+        <div class="metric">
+          <div class="k">현재 AI 판정</div>
+          <div class="v ai" id="aiLabelVal">-</div>
+        </div>
+        <div class="metric">
+          <div class="k">AI 호흡 확률</div>
+          <div class="v ai" id="aiScoreVal">0%</div>
+        </div>
+        <div class="metric">
+          <div class="k">단순 DSP 호흡수</div>
+          <div class="v" id="dspBpmVal">- 회/분</div>
+        </div>
+        <div class="metric">
+          <div class="k">AI 필터링 호흡수</div>
+          <div class="v ai" id="aiBpmVal">- 회/분</div>
+        </div>
+      </div>
+
+      <div style="margin-top:16px;">
+        <div class="sub" style="font-weight:600; color:var(--text);">실시간 YAMNet 상위 분류 결과</div>
+        <div class="bars" id="classBars">
+          <div class="sub">마이크를 시작하면 AI가 감지한 소리 종류가 실시간 표시됩니다.</div>
+        </div>
+      </div>
+      <div class="sub" id="debugInfo" style="margin-top:12px; font-size:0.78rem;">대기 중</div>
+    </div>
+  </div>
+
+  <script type="module">
+    import { AudioClassifier, FilesetResolver } from "https://cdn.jsdelivr.net/npm/@mediapipe/tasks-audio/audio_bundle.mjs";
+
+    const BREATH_LABELS = new Set([
+      "Breathing", "Snoring", "Gasp", "Pant", "Sigh", "Snort", "Wheeze"
+    ]);
+    const TARGET_SR = 16000;
+    const WINDOW_SAMPLES = 15600; // YAMNet 표준 입력 길이 (~0.975s @ 16kHz)
+
+    let audioClassifier = null;
+    let audioCtx = null;
+    let micStream = null;
+    let scriptNode = null;
+    let analyser = null;
+    let timeData = null;
+    let bgAudioEl = null;
+    let running = false;
+    let rafId = null;
+    let classifyTimer = null;
+
+    // 16kHz 리샘플링 링버퍼
+    const ring16k = new Float32Array(WINDOW_SAMPLES);
+    let ringWritePos = 0;
+
+    // DSP 상태
+    let noiseFloor = 0.0005;
+    let signalPeak = 0.003;
+    let smoothEnv = 0;
+    let dspWasAbove = false;
+    let dspLastPeak = 0;
+    let dspIntervals = [];
+
+    // AI 하이브리드 상태
+    let currentAiBreathProb = 0;
+    let aiWasAbove = false;
+    let aiLastPeak = 0;
+    let aiIntervals = [];
+
+    const dspHistory = new Array(180).fill(0);
+    const aiHistory = new Array(180).fill(0);
+
+    const startBtn = document.getElementById("startBtn");
+    const stopBtn = document.getElementById("stopBtn");
+    const stateBadge = document.getElementById("stateBadge");
+    const micSelect = document.getElementById("micSelect");
+    const aiThreshInput = document.getElementById("aiThresh");
+    const sensInput = document.getElementById("sensitivity");
+    const bgSoundSelect = document.getElementById("bgSoundSelect");
+
+    const aiLabelVal = document.getElementById("aiLabelVal");
+    const aiScoreVal = document.getElementById("aiScoreVal");
+    const dspBpmVal = document.getElementById("dspBpmVal");
+    const aiBpmVal = document.getElementById("aiBpmVal");
+    const classBars = document.getElementById("classBars");
+    const debugInfo = document.getElementById("debugInfo");
+    const canvas = document.getElementById("scope");
+    const ctx2d = canvas.getContext("2d");
+
+    aiThreshInput.oninput = () => document.getElementById("aiThreshVal").textContent = aiThreshInput.value;
+    sensInput.oninput = () => document.getElementById("sensVal").textContent = sensInput.value;
+
+    async function initModel() {
+      try {
+        const resolver = await FilesetResolver.forAudioTasks(
+          "https://cdn.jsdelivr.net/npm/@mediapipe/tasks-audio/wasm"
+        );
+        audioClassifier = await AudioClassifier.createFromOptions(resolver, {
+          baseOptions: {
+            modelAssetPath: "https://storage.googleapis.com/mediapipe-models/audio_classifier/yamnet/float32/latest/yamnet.tflite"
+          },
+          maxResults: 6,
+          scoreThreshold: 0.03
+        });
+        startBtn.disabled = false;
+        startBtn.textContent = "🎙️ 마이크 테스트 시작";
+        stateBadge.textContent = "AI 모델 준비 완료";
+        stateBadge.className = "badge ready";
+      } catch (err) {
+        startBtn.textContent = "❌ 모델 로드 실패";
+        stateBadge.textContent = "초기화 오류";
+        debugInfo.textContent = "MediaPipe YAMNet 로드 오류: " + err.message;
+      }
+    }
+
+    async function refreshMicList() {
+      if (!navigator.mediaDevices?.enumerateDevices) return;
+      const devices = await navigator.mediaDevices.enumerateDevices();
+      const inputs = devices.filter(d => d.kind === "audioinput");
+      const prev = micSelect.value;
+      micSelect.innerHTML = '<option value="">기본 마이크 (자동)</option>';
+      inputs.forEach((d, idx) => {
+        const opt = document.createElement("option");
+        opt.value = d.deviceId;
+        opt.textContent = d.label || `마이크 ${idx + 1}`;
+        micSelect.appendChild(opt);
+      });
+      if (prev) micSelect.value = prev;
+    }
+
+    function pushResampledToRing(inputFloat32, srcRate) {
+      const ratio = srcRate / TARGET_SR;
+      const outLen = Math.floor(inputFloat32.length / ratio);
+      for (let i = 0; i < outLen; i++) {
+        const srcIdx = i * ratio;
+        const i0 = Math.floor(srcIdx);
+        const i1 = Math.min(i0 + 1, inputFloat32.length - 1);
+        const frac = srcIdx - i0;
+        const sample = inputFloat32[i0] * (1 - frac) + inputFloat32[i1] * frac;
+        ring16k[ringWritePos] = sample;
+        ringWritePos = (ringWritePos + 1) % WINDOW_SAMPLES;
+      }
+    }
+
+    function getOrderedWindow16k() {
+      const out = new Float32Array(WINDOW_SAMPLES);
+      const tailLen = WINDOW_SAMPLES - ringWritePos;
+      out.set(ring16k.subarray(ringWritePos), 0);
+      out.set(ring16k.subarray(0, ringWritePos), tailLen);
+      return out;
+    }
+
+    function runAiClassification() {
+      if (!running || !audioClassifier) return;
+      const chunk = getOrderedWindow16k();
+      const results = audioClassifier.classify(chunk, TARGET_SR);
+      const cats = results?.[0]?.classifications?.[0]?.categories || [];
+
+      let breathSum = 0;
+      for (const c of cats) {
+        if (BREATH_LABELS.has(c.categoryName)) {
+          breathSum += c.score;
+        }
+      }
+      currentAiBreathProb = Math.min(1, breathSum);
+
+      const top = cats[0];
+      aiLabelVal.textContent = top ? `${top.categoryName} (${Math.round(top.score * 100)}%)` : "-";
+      aiScoreVal.textContent = `${Math.round(currentAiBreathProb * 100)}%`;
+
+      const thresh = Number(aiThreshInput.value) / 100;
+      if (currentAiBreathProb >= thresh) {
+        stateBadge.textContent = "호흡 감지됨";
+        stateBadge.className = "badge breath";
+      } else if (top && top.categoryName !== "Silence" && top.score > 0.25) {
+        stateBadge.textContent = `기타 소리: ${top.categoryName}`;
+        stateBadge.className = "badge noise";
+      } else {
+        stateBadge.textContent = "대기 / 무음";
+        stateBadge.className = "badge ready";
+      }
+
+      // 상위 분류 막대 렌더링
+      classBars.innerHTML = cats.slice(0, 5).map(c => {
+        const pct = Math.round(c.score * 100);
+        const isBreath = BREATH_LABELS.has(c.categoryName);
+        return `
+          <div class="bar-row">
+            <span>${c.categoryName}${isBreath ? " 🫁" : ""}</span>
+            <div class="bar-track"><div class="bar-fill ${isBreath ? "is-breath" : ""}" style="width:${pct}%"></div></div>
+            <span style="text-align:right; color:var(--muted);">${pct}%</span>
+          </div>
+        `;
+      }).join("") || '<div class="sub">감지된 소리 없음</div>';
+    }
+
+    function trackPeriod(value, nowMs, highTh, lowTh, state) {
+      if (!state.wasAbove && value > highTh) {
+        state.wasAbove = true;
+        if (state.lastPeak > 0) {
+          const sec = (nowMs - state.lastPeak) / 1000;
+          if (sec >= 1.8 && sec <= 14.0) {
+            state.intervals.push(sec);
+            if (state.intervals.length > 4) state.intervals.shift();
+          }
+        }
+        state.lastPeak = nowMs;
+      } else if (state.wasAbove && value < lowTh) {
+        state.wasAbove = false;
+      }
+    }
+
+    const dspState = { wasAbove: false, lastPeak: 0, intervals: [] };
+    const aiState = { wasAbove: false, lastPeak: 0, intervals: [] };
+
+    function loop() {
+      if (!running || !analyser) return;
+      const nowMs = performance.now();
+
+      analyser.getFloatTimeDomainData(timeData);
+      let sum = 0;
+      for (let i = 0; i < timeData.length; i++) sum += timeData[i] * timeData[i];
+      const rms = Math.sqrt(sum / timeData.length);
+
+      noiseFloor = noiseFloor * 0.99 + Math.min(rms, noiseFloor * 1.4) * 0.01;
+      signalPeak = Math.max(rms, signalPeak * 0.992, noiseFloor + 0.0004);
+      const span = Math.max(signalPeak - noiseFloor, 0.0004);
+      const norm = Math.max(0, (rms - noiseFloor * 1.05) / span);
+      const target = Math.min(1, norm * (Number(sensInput.value) / 2.5));
+
+      const alpha = target > smoothEnv ? 0.18 : 0.06;
+      smoothEnv = smoothEnv * (1 - alpha) + target * alpha;
+
+      // 1) 단순 DSP 주기 추적
+      trackPeriod(smoothEnv, nowMs, 0.55, 0.35, dspState);
+
+      // 2) AI 게이트 하이브리드 주기 추적: AI가 호흡으로 인정할 때만 피크 인정
+      const thresh = Number(aiThreshInput.value) / 100;
+      const gatedEnv = currentAiBreathProb >= thresh ? smoothEnv : smoothEnv * 0.15;
+      trackPeriod(gatedEnv, nowMs, 0.50, 0.28, aiState);
+
+      if (dspState.intervals.length > 0) {
+        const avg = dspState.intervals.reduce((a, b) => a + b, 0) / dspState.intervals.length;
+        dspBpmVal.textContent = `${(60 / avg).toFixed(1)} 회/분`;
+      }
+      if (aiState.intervals.length > 0) {
+        const avg = aiState.intervals.reduce((a, b) => a + b, 0) / aiState.intervals.length;
+        aiBpmVal.textContent = `${(60 / avg).toFixed(1)} 회/분`;
+      }
+
+      dspHistory.push(smoothEnv);
+      aiHistory.push(currentAiBreathProb);
+      if (dspHistory.length > 180) dspHistory.shift();
+      if (aiHistory.length > 180) aiHistory.shift();
+
+      ctx2d.clearRect(0, 0, canvas.width, canvas.height);
+      const drawCurve = (arr, color, width) => {
+        ctx2d.beginPath();
+        ctx2d.strokeStyle = color;
+        ctx2d.lineWidth = width;
+        for (let i = 0; i < arr.length; i++) {
+          const x = (i / (arr.length - 1)) * canvas.width;
+          const y = canvas.height - 14 - arr[i] * (canvas.height - 28);
+          if (i === 0) ctx2d.moveTo(x, y);
+          else ctx2d.lineTo(x, y);
+        }
+        ctx2d.stroke();
+      };
+      drawCurve(dspHistory, "#4fd1c5", 2);
+      drawCurve(aiHistory, "#b794f4", 2.4);
+
+      debugInfo.textContent = `샘플레이트: ${audioCtx.sampleRate}Hz → 16kHz 변환 | RMS: ${rms.toFixed(5)} (바닥 ${noiseFloor.toFixed(5)})`;
+      rafId = requestAnimationFrame(loop);
+    }
+
+    function updateBgAudio() {
+      const url = bgSoundSelect.value;
+      if (bgAudioEl) {
+        bgAudioEl.pause();
+        bgAudioEl = null;
+      }
+      if (running && url) {
+        bgAudioEl = new Audio(url);
+        bgAudioEl.loop = true;
+        bgAudioEl.volume = 0.35;
+        bgAudioEl.play().catch(() => {});
+      }
+    }
+    bgSoundSelect.onchange = updateBgAudio;
+
+    async function start() {
+      stop();
+      try {
+        if (!navigator.mediaDevices?.getUserMedia) {
+          throw new Error("HTTPS 또는 localhost 환경에서만 마이크를 사용할 수 있습니다.");
+        }
+        const constraints = {
+          echoCancellation: false,
+          noiseSuppression: false,
+          autoGainControl: false
+        };
+        if (micSelect.value) constraints.deviceId = { exact: micSelect.value };
+
+        micStream = await navigator.mediaDevices.getUserMedia({ audio: constraints });
+        await refreshMicList();
+
+        audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+        if (audioCtx.state === "suspended") await audioCtx.resume();
+
+        const micSource = audioCtx.createMediaStreamSource(micStream);
+
+        // DSP용 밴드패스
+        const hp = audioCtx.createBiquadFilter();
+        hp.type = "highpass";
+        hp.frequency.value = 120;
+        const lp = audioCtx.createBiquadFilter();
+        lp.type = "lowpass";
+        lp.frequency.value = 1800;
+
+        analyser = audioCtx.createAnalyser();
+        analyser.fftSize = 1024;
+        timeData = new Float32Array(analyser.fftSize);
+
+        // AI용 원음 PCM 수집 노드 (16kHz 리샘플링)
+        scriptNode = audioCtx.createScriptProcessor(4096, 1, 1);
+        scriptNode.onaudioprocess = (ev) => {
+          if (!running) return;
+          pushResampledToRing(ev.inputBuffer.getChannelData(0), audioCtx.sampleRate);
+        };
+
+        const silentGain = audioCtx.createGain();
+        silentGain.gain.value = 0;
+
+        micSource.connect(hp);
+        hp.connect(lp);
+        lp.connect(analyser);
+        analyser.connect(silentGain);
+
+        micSource.connect(scriptNode);
+        scriptNode.connect(silentGain);
+        silentGain.connect(audioCtx.destination);
+
+        noiseFloor = 0.0005;
+        signalPeak = 0.003;
+        smoothEnv = 0;
+        dspState.wasAbove = false; dspState.lastPeak = 0; dspState.intervals = [];
+        aiState.wasAbove = false; aiState.lastPeak = 0; aiState.intervals = [];
+        dspBpmVal.textContent = "측정 중...";
+        aiBpmVal.textContent = "측정 중...";
+
+        running = true;
+        startBtn.disabled = true;
+        stopBtn.disabled = false;
+        updateBgAudio();
+
+        classifyTimer = setInterval(runAiClassification, 320);
+        loop();
+      } catch (err) {
+        alert("마이크 시작 오류: " + err.message);
+        stop();
+      }
+    }
+
+    function stop() {
+      running = false;
+      if (rafId) cancelAnimationFrame(rafId);
+      if (classifyTimer) { clearInterval(classifyTimer); classifyTimer = null; }
+      if (bgAudioEl) { bgAudioEl.pause(); bgAudioEl = null; }
+      if (scriptNode) { try { scriptNode.disconnect(); } catch (_) {} scriptNode = null; }
+      if (micStream) { micStream.getTracks().forEach(t => t.stop()); micStream = null; }
+      if (audioCtx) { audioCtx.close(); audioCtx = null; }
+      analyser = null;
+      startBtn.disabled = !audioClassifier;
+      stopBtn.disabled = true;
+      if (audioClassifier) {
+        stateBadge.textContent = "대기 중";
+        stateBadge.className = "badge ready";
+      }
+      ctx2d.clearRect(0, 0, canvas.width, canvas.height);
+    }
+
+    startBtn.onclick = start;
+    stopBtn.onclick = stop;
+    initModel();
+  </script>
+</body>
+</html>
