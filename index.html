@@ -1,0 +1,424 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>숨소리 연동 수면 사운드 프로토타입</title>
+  <style>
+    :root {
+      --bg: #0b101b;
+      --card: #131b2e;
+      --border: #23304c;
+      --text: #e6edf7;
+      --muted: #8fa3c4;
+      --accent: #5fa8ff;
+      --calm: #4fd1c5;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      display: flex;
+      justify-content: center;
+      padding: 24px 16px;
+      min-height: 100vh;
+    }
+    .wrap {
+      width: 100%;
+      max-width: 720px;
+      display: flex;
+      flex-direction: column;
+      gap: 16px;
+    }
+    .card {
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: 14px;
+      padding: 20px;
+    }
+    h1 { margin: 0 0 6px; font-size: 1.35rem; }
+    .sub { color: var(--muted); font-size: 0.9rem; line-height: 1.5; margin: 0; }
+    .row { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; }
+    button {
+      border: none;
+      border-radius: 10px;
+      padding: 11px 16px;
+      font-size: 0.95rem;
+      font-weight: 600;
+      cursor: pointer;
+      transition: opacity 0.15s;
+    }
+    button:hover { opacity: 0.9; }
+    .btn-primary { background: var(--accent); color: #07111f; }
+    .btn-stop { background: #e05d6f; color: #fff; }
+    .btn-ghost { background: #1c2740; color: var(--text); border: 1px solid var(--border); }
+    .controls {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+      gap: 14px;
+      margin-top: 12px;
+    }
+    label { display: flex; flex-direction: column; gap: 6px; font-size: 0.85rem; color: var(--muted); }
+    input[type="range"], select {
+      width: 100%;
+      accent-color: var(--accent);
+      background: #0e1525;
+      color: var(--text);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 6px 8px;
+    }
+    canvas {
+      width: 100%;
+      height: 140px;
+      background: #070b13;
+      border-radius: 10px;
+      border: 1px solid var(--border);
+      display: block;
+    }
+    .metrics {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 10px;
+      margin-top: 12px;
+    }
+    .metric {
+      background: #0d1424;
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 10px 12px;
+    }
+    .metric .k { font-size: 0.75rem; color: var(--muted); }
+    .metric .v { font-size: 1.1rem; font-weight: 700; margin-top: 4px; color: var(--calm); }
+    .note {
+      font-size: 0.82rem;
+      color: var(--muted);
+      line-height: 1.5;
+      background: #0d1424;
+      border-left: 3px solid var(--calm);
+      padding: 10px 12px;
+      border-radius: 6px;
+    }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <div class="card">
+      <h1>🌊 숨소리 연동 수면 사운드 (초소형 프로토타입)</h1>
+      <p class="sub">
+        오디오 파일 반복(루프) 없이 브라우저에서 브라운 노이즈를 실시간 합성합니다.
+        마이크로 숨소리 에너지를 감지해 파도/바람 소리의 깊이와 볼륨을 실시간으로 맞춥니다.
+      </p>
+      <div class="note" style="margin-top:12px;">
+        <strong>테스트 팁:</strong> 자가 간섭(스피커 소리를 마이크가 다시 듣는 현상)을 줄이려면 <strong>이어폰</strong>을 끼고 테스트하시는 게 가장 정확합니다. 모든 처리는 브라우저 내부에서만 실행되며 녹음·전송되지 않습니다.
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="row">
+        <button id="startMicBtn" class="btn-primary">🎙️ 마이크 연동 시작</button>
+        <button id="startSimBtn" class="btn-ghost">🌙 마이크 없이 호흡 시뮬레이션</button>
+        <button id="stopBtn" class="btn-stop" disabled>⏹ 정지</button>
+      </div>
+
+      <div class="controls">
+        <label>
+          마이크 장치 선택
+          <select id="micSelect">
+            <option value="">기본 마이크 (자동)</option>
+          </select>
+        </label>
+        <label>
+          동작 모드
+          <select id="modeSelect">
+            <option value="mirror">실시간 호흡 추종 (내 숨에 파도 동기화)</option>
+            <option value="pacer">느린 호흡 유도 (4초 들숨 · 6초 날숨)</option>
+          </select>
+        </label>
+        <label>
+          기본 배경음 볼륨 (<span id="baseVolVal">0.25</span>)
+          <input id="baseVol" type="range" min="0.05" max="0.6" step="0.01" value="0.25" />
+        </label>
+        <label>
+          호흡 반응 감도 (<span id="sensVal">3.0</span>x)
+          <input id="sensitivity" type="range" min="1.0" max="8.0" step="0.2" value="3.0" />
+        </label>
+        <label>
+          파도 밝기 / 컷오프 (<span id="brightVal">420</span> Hz)
+          <input id="brightness" type="range" min="180" max="900" step="10" value="420" />
+        </label>
+      </div>
+    </div>
+
+    <div class="card">
+      <canvas id="scope" width="680" height="140"></canvas>
+      <div class="metrics">
+        <div class="metric"><div class="k">상태</div><div class="v" id="statusText">대기 중</div></div>
+        <div class="metric"><div class="k">감지된 호흡 에너지</div><div class="v" id="breathVal">0%</div></div>
+        <div class="metric"><div class="k">현재 파도 필터</div><div class="v" id="filterVal">- Hz</div></div>
+      </div>
+      <div class="sub" id="micDebug" style="margin-top:8px; font-size:0.8rem;">마이크 입력: 대기 중</div>
+    </div>
+  </div>
+
+  <script>
+    let audioCtx = null;
+    let micStream = null;
+    let rafId = null;
+    let simMode = false;
+    let running = false;
+
+    let masterGain = null;
+    let waveFilter = null;
+    let analyser = null;
+    let timeData = null;
+
+    let noiseFloor = 0.0005;
+    let smoothEnvelope = 0;
+
+    const startMicBtn = document.getElementById("startMicBtn");
+    const startSimBtn = document.getElementById("startSimBtn");
+    const stopBtn = document.getElementById("stopBtn");
+    const micSelect = document.getElementById("micSelect");
+    const modeSelect = document.getElementById("modeSelect");
+    const baseVolInput = document.getElementById("baseVol");
+    const sensInput = document.getElementById("sensitivity");
+    const brightInput = document.getElementById("brightness");
+
+    const statusText = document.getElementById("statusText");
+    const breathVal = document.getElementById("breathVal");
+    const filterVal = document.getElementById("filterVal");
+    const micDebug = document.getElementById("micDebug");
+    const canvas = document.getElementById("scope");
+    const ctx2d = canvas.getContext("2d");
+
+    baseVolInput.oninput = () => document.getElementById("baseVolVal").textContent = baseVolInput.value;
+    sensInput.oninput = () => document.getElementById("sensVal").textContent = sensInput.value;
+    brightInput.oninput = () => document.getElementById("brightVal").textContent = brightInput.value;
+
+    function createBrownNoiseBuffer(ctx, seconds = 6) {
+      // 루프 티가 나지 않도록 긴 버퍼 + 크로스페이드 처리된 브라운 노이즈 생성
+      const sampleRate = ctx.sampleRate;
+      const length = sampleRate * seconds;
+      const buffer = ctx.createBuffer(1, length, sampleRate);
+      const data = buffer.getChannelData(0);
+      let lastOut = 0.0;
+      for (let i = 0; i < length; i++) {
+        const white = Math.random() * 2 - 1;
+        data[i] = (lastOut + 0.02 * white) / 1.02;
+        lastOut = data[i];
+        data[i] *= 3.2;
+      }
+      // 끝부분과 시작부분을 0.2초 크로스페이드해 이음새 완전 제거
+      const fadeLen = Math.floor(sampleRate * 0.2);
+      for (let i = 0; i < fadeLen; i++) {
+        const w = i / fadeLen;
+        data[i] = data[i] * w + data[length - fadeLen + i] * (1 - w);
+      }
+      return buffer;
+    }
+
+    function setupSoundEngine() {
+      audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+      const noiseBuffer = createBrownNoiseBuffer(audioCtx, 8);
+      const noiseSrc = audioCtx.createBufferSource();
+      noiseSrc.buffer = noiseBuffer;
+      noiseSrc.loop = true;
+
+      waveFilter = audioCtx.createBiquadFilter();
+      waveFilter.type = "lowpass";
+      waveFilter.frequency.value = Number(brightInput.value);
+      waveFilter.Q.value = 0.7;
+
+      masterGain = audioCtx.createGain();
+      masterGain.gain.value = Number(baseVolInput.value);
+
+      noiseSrc.connect(waveFilter);
+      waveFilter.connect(masterGain);
+      masterGain.connect(audioCtx.destination);
+      noiseSrc.start();
+    }
+
+    async function refreshMicList() {
+      if (!navigator.mediaDevices || !navigator.mediaDevices.enumerateDevices) return;
+      const devices = await navigator.mediaDevices.enumerateDevices();
+      const inputs = devices.filter(d => d.kind === "audioinput");
+      const current = micSelect.value;
+      micSelect.innerHTML = '<option value="">기본 마이크 (자동)</option>';
+      inputs.forEach((d, idx) => {
+        const opt = document.createElement("option");
+        opt.value = d.deviceId;
+        opt.textContent = d.label || `마이크 ${idx + 1}`;
+        micSelect.appendChild(opt);
+      });
+      if (current) micSelect.value = current;
+    }
+
+    async function start(useMic) {
+      stop();
+      simMode = !useMic;
+      setupSoundEngine();
+      if (audioCtx.state === "suspended") {
+        await audioCtx.resume();
+      }
+
+      if (useMic) {
+        try {
+          if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+            throw new Error("HTTPS 또는 localhost 환경이 아니어서 브라우저가 마이크 접근을 차단했습니다.");
+          }
+          const audioConstraints = {
+            echoCancellation: false,
+            noiseSuppression: false,
+            autoGainControl: false
+          };
+          if (micSelect.value) {
+            audioConstraints.deviceId = { exact: micSelect.value };
+          }
+          micStream = await navigator.mediaDevices.getUserMedia({ audio: audioConstraints });
+          await refreshMicList();
+          const track = micStream.getAudioTracks()[0];
+          const micName = track ? track.label : "기본 마이크";
+
+          const micSource = audioCtx.createMediaStreamSource(micStream);
+          // 숨소리 대역(120Hz ~ 1800Hz) 통과 필터
+          const hp = audioCtx.createBiquadFilter();
+          hp.type = "highpass";
+          hp.frequency.value = 120;
+
+          const lp = audioCtx.createBiquadFilter();
+          lp.type = "lowpass";
+          lp.frequency.value = 1800;
+
+          analyser = audioCtx.createAnalyser();
+          analyser.fftSize = 1024;
+          timeData = new Float32Array(analyser.fftSize);
+
+          // 중요: Chromium에서 AnalyserNode가 멈추지 않도록 무음(gain=0)으로 destination에 연결
+          const silentGain = audioCtx.createGain();
+          silentGain.gain.value = 0;
+
+          micSource.connect(hp);
+          hp.connect(lp);
+          lp.connect(analyser);
+          analyser.connect(silentGain);
+          silentGain.connect(audioCtx.destination);
+
+          noiseFloor = 0.0005;
+          statusText.textContent = "마이크 감지 중";
+          micDebug.textContent = `연결된 마이크: ${micName} (${audioCtx.state})`;
+        } catch (err) {
+          statusText.textContent = "마이크 권한 오류";
+          alert("마이크 접근에 실패했습니다: " + err.message);
+          stop();
+          return;
+        }
+      } else {
+        statusText.textContent = "호흡 시뮬레이션";
+      }
+
+      running = true;
+      startMicBtn.disabled = true;
+      startSimBtn.disabled = true;
+      stopBtn.disabled = false;
+      loop();
+    }
+
+    function stop() {
+      running = false;
+      if (rafId) cancelAnimationFrame(rafId);
+      if (micStream) {
+        micStream.getTracks().forEach(t => t.stop());
+        micStream = null;
+      }
+      if (audioCtx) {
+        audioCtx.close();
+        audioCtx = null;
+      }
+      analyser = null;
+      smoothEnvelope = 0;
+      startMicBtn.disabled = false;
+      startSimBtn.disabled = false;
+      stopBtn.disabled = true;
+      statusText.textContent = "대기 중";
+      breathVal.textContent = "0%";
+      filterVal.textContent = "- Hz";
+      ctx2d.clearRect(0, 0, canvas.width, canvas.height);
+    }
+
+    const history = new Array(170).fill(0);
+
+    function loop() {
+      if (!running || !audioCtx) return;
+
+      let targetBreath = 0;
+      const mode = modeSelect.value;
+
+      if (mode === "pacer") {
+        // 10초 주기 (4초 들숨, 6초 날숨) 사인파형 부드러운 호흡 가이드
+        const t = (performance.now() / 1000) % 10;
+        targetBreath = t < 4
+          ? 0.5 - 0.5 * Math.cos((t / 4) * Math.PI)
+          : 0.5 + 0.5 * Math.cos(((t - 4) / 6) * Math.PI);
+      } else if (simMode) {
+        const t = performance.now() / 1000;
+        targetBreath = 0.5 + 0.5 * Math.sin(t * 1.1);
+      } else if (analyser && timeData) {
+        analyser.getFloatTimeDomainData(timeData);
+        let sum = 0;
+        for (let i = 0; i < timeData.length; i++) sum += timeData[i] * timeData[i];
+        const rms = Math.sqrt(sum / timeData.length);
+
+        // 아주 느리게 배경 소음 바닥(noiseFloor) 적응
+        noiseFloor = noiseFloor * 0.992 + Math.min(rms, noiseFloor * 1.5) * 0.008;
+        const delta = Math.max(0, rms - noiseFloor * 1.08);
+        const sens = Number(sensInput.value);
+        targetBreath = Math.min(1, delta * sens * 90);
+        micDebug.textContent = `장치: ${micStream?.getAudioTracks()[0]?.label || '기본'} | 실시간 RMS: ${rms.toFixed(5)} | 기준선: ${noiseFloor.toFixed(5)}`;
+      }
+
+      // 급격한 튐 방지 (부드러운 파도 포락선)
+      const alpha = targetBreath > smoothEnvelope ? 0.12 : 0.045;
+      smoothEnvelope = smoothEnvelope * (1 - alpha) + targetBreath * alpha;
+
+      const baseVol = Number(baseVolInput.value);
+      const baseCutoff = Number(brightInput.value);
+
+      // 호흡에 맞춰 볼륨과 필터 주파수가 부드럽게 열리고 닫힘
+      const modVol = baseVol * (0.65 + 0.75 * smoothEnvelope);
+      const modCutoff = baseCutoff * (0.6 + 1.1 * smoothEnvelope);
+
+      const now = audioCtx.currentTime;
+      masterGain.gain.setTargetAtTime(modVol, now, 0.08);
+      waveFilter.frequency.setTargetAtTime(modCutoff, now, 0.08);
+
+      breathVal.textContent = `${Math.round(smoothEnvelope * 100)}%`;
+      filterVal.textContent = `${Math.round(modCutoff)} Hz`;
+
+      // 시각화
+      history.push(smoothEnvelope);
+      if (history.length > 170) history.shift();
+
+      ctx2d.clearRect(0, 0, canvas.width, canvas.height);
+      ctx2d.beginPath();
+      ctx2d.strokeStyle = "#4fd1c5";
+      ctx2d.lineWidth = 2.5;
+      for (let i = 0; i < history.length; i++) {
+        const x = (i / (history.length - 1)) * canvas.width;
+        const y = canvas.height - 16 - history[i] * (canvas.height - 32);
+        if (i === 0) ctx2d.moveTo(x, y);
+        else ctx2d.lineTo(x, y);
+      }
+      ctx2d.stroke();
+
+      rafId = requestAnimationFrame(loop);
+    }
+
+    startMicBtn.onclick = () => start(true);
+    startSimBtn.onclick = () => start(false);
+    stopBtn.onclick = stop;
+  </script>
+</body>
+</html>
