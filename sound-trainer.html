@@ -78,6 +78,7 @@
     .btn-primary { background: var(--accent); color: #07111f; }
     .btn-stop { background: #e05d6f; color: #fff; }
     .btn-ghost { background: #1c2740; color: var(--text); border: 1px solid var(--border); }
+    .btn-ghost.active-mode { background: rgba(79, 209, 197, 0.18); color: var(--calm); border-color: var(--calm); }
     .file-label { background: #1d3549; color: var(--calm); border: 1px solid #2b5470; }
     input[type="file"] { display: none; }
     select, input[type="range"] {
@@ -246,8 +247,8 @@
       <div class="row" style="justify-content: space-between;">
         <h2 style="margin:0;">📊 실시간 수렴 중인 사운드 DNA</h2>
         <div class="row">
-          <button id="listenBestBtn" class="btn-ghost" disabled>🏆 현재 최적값 듣기</button>
-          <button id="listenRawBtn" class="btn-ghost" disabled>🎧 가공 전 원음 듣기</button>
+          <button id="listenBestBtn" class="btn-ghost">🏆 현재 최적값 듣기</button>
+          <button id="listenRawBtn" class="btn-ghost">🎧 가공 전 원음 듣기</button>
         </div>
       </div>
 
@@ -515,6 +516,8 @@
       currentListening = which;
       cardA.classList.toggle("active", which === "A");
       cardB.classList.toggle("active", which === "B");
+      listenBestBtn.classList.toggle("active-mode", which === "BEST");
+      listenRawBtn.classList.toggle("active-mode", which === "RAW");
       stateA.textContent = which === "A" ? "🔊 현재 재생 중" : "클릭해서 A 들어보기";
       stateB.textContent = which === "B" ? "🔊 현재 재생 중" : "클릭해서 B 들어보기";
 
@@ -674,8 +677,6 @@
         voteBBtn.disabled = false;
         voteTieBtn.disabled = false;
         voteBadBtn.disabled = false;
-        listenBestBtn.disabled = false;
-        listenRawBtn.disabled = false;
 
         selectListening(currentListening);
         statusText.textContent = "🎧 A와 B 카드를 번갈아 눌러 들어보신 뒤, 더 편안한 쪽에 투표해 주세요.";
@@ -699,18 +700,28 @@
       voteBBtn.disabled = true;
       voteTieBtn.disabled = true;
       voteBadBtn.disabled = true;
-      listenBestBtn.disabled = true;
-      listenRawBtn.disabled = true;
     }
 
-    cardA.onclick = () => selectListening("A");
-    cardB.onclick = () => selectListening("B");
-    listenBestBtn.onclick = () => {
-      selectListening("BEST");
+    cardA.onclick = async () => {
+      currentListening = "A";
+      if (!running) await startAudio();
+      else selectListening("A");
+    };
+    cardB.onclick = async () => {
+      currentListening = "B";
+      if (!running) await startAudio();
+      else selectListening("B");
+    };
+    listenBestBtn.onclick = async () => {
+      currentListening = "BEST";
+      if (!running) await startAudio();
+      else selectListening("BEST");
       statusText.textContent = "🏆 현재까지 학습된 최적 사운드 DNA를 재생 중입니다.";
     };
-    listenRawBtn.onclick = () => {
-      selectListening("RAW");
+    listenRawBtn.onclick = async () => {
+      currentListening = "RAW";
+      if (!running) await startAudio();
+      else selectListening("RAW");
       statusText.textContent = "🎧 가공하지 않은 원본 자연음을 재생 중입니다.";
     };
 
@@ -763,7 +774,10 @@
       }
     };
 
-    startBtn.onclick = startAudio;
+    startBtn.onclick = () => {
+      currentListening = "A";
+      startAudio();
+    };
     stopBtn.onclick = stopAudio;
     prepareRoundCandidates();
   </script>
