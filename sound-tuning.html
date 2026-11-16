@@ -1,0 +1,594 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>사운드 감성 튜닝 콘솔 (안전감·기분 좋음 실험)</title>
+  <style>
+    :root {
+      --bg: #0b101b;
+      --card: #131b2e;
+      --border: #23304c;
+      --text: #e6edf7;
+      --muted: #8fa3c4;
+      --accent: #5fa8ff;
+      --calm: #4fd1c5;
+      --warm: #f6ad55;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      display: flex;
+      justify-content: center;
+      padding: 20px 16px;
+      min-height: 100vh;
+    }
+    .wrap {
+      width: 100%;
+      max-width: 820px;
+      display: flex;
+      flex-direction: column;
+      gap: 16px;
+    }
+    .card {
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: 14px;
+      padding: 18px 20px;
+    }
+    .header-row {
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-start;
+      gap: 12px;
+      flex-wrap: wrap;
+    }
+    h1 { margin: 0 0 6px; font-size: 1.25rem; }
+    h2 { margin: 0 0 12px; font-size: 1rem; color: var(--calm); }
+    .sub { color: var(--muted); font-size: 0.86rem; line-height: 1.5; margin: 0; }
+    .nav-link {
+      color: var(--accent);
+      text-decoration: none;
+      font-size: 0.84rem;
+      padding: 7px 12px;
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      background: #0e1525;
+      white-space: nowrap;
+    }
+    .nav-link:hover { background: #1a2640; }
+    .row { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; }
+    button, .file-label {
+      border: none;
+      border-radius: 10px;
+      padding: 10px 15px;
+      font-size: 0.9rem;
+      font-weight: 600;
+      cursor: pointer;
+      transition: opacity 0.15s, transform 0.08s;
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+    }
+    button:hover, .file-label:hover { opacity: 0.9; }
+    button:disabled { opacity: 0.45; cursor: not-allowed; }
+    .btn-primary { background: var(--accent); color: #07111f; }
+    .btn-stop { background: #e05d6f; color: #fff; }
+    .btn-ghost { background: #1c2740; color: var(--text); border: 1px solid var(--border); }
+    .btn-warm { background: rgba(246, 173, 85, 0.18); color: var(--warm); border: 1px solid var(--warm); }
+    .btn-ab {
+      background: #1a3335;
+      color: var(--calm);
+      border: 1px solid var(--calm);
+    }
+    .btn-ab.bypass {
+      background: #2b2330;
+      color: #fbb6ce;
+      border: 1px solid #d53f8c;
+    }
+    .file-label { background: #1d3549; color: var(--calm); border: 1px solid #2b5470; }
+    input[type="file"] { display: none; }
+    .grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(230px, 1fr));
+      gap: 14px;
+    }
+    .ctrl-box {
+      background: #0d1424;
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 12px 14px;
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
+    .ctrl-title {
+      display: flex;
+      justify-content: space-between;
+      font-size: 0.84rem;
+      font-weight: 600;
+      color: var(--text);
+    }
+    .ctrl-val { color: var(--calm); font-variant-numeric: tabular-nums; }
+    .ctrl-desc { font-size: 0.76rem; color: var(--muted); line-height: 1.4; }
+    input[type="range"], select {
+      width: 100%;
+      accent-color: var(--accent);
+      background: #09101d;
+      color: var(--text);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 7px 9px;
+    }
+    .note {
+      font-size: 0.82rem;
+      color: var(--muted);
+      line-height: 1.5;
+      background: #0d1424;
+      border-left: 3px solid var(--warm);
+      padding: 10px 12px;
+      border-radius: 6px;
+      margin-top: 12px;
+    }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <div class="card">
+      <div class="header-row">
+        <div>
+          <h1>🎛️ 사운드 감성 튜닝 콘솔</h1>
+          <p class="sub">
+            자연음을 단순 재생하지 않고, <strong>은신처 실내감 · 미세 위협 제거 · 따뜻한 화성 배음</strong>을 실시간으로 조합해<br />
+            <em>"듣자마자 안전하고 기분이 좋아지는 소리"</em>를 찾는 선행 실험 콘솔입니다.
+          </p>
+        </div>
+        <a class="nav-link" href="./index.html">← 수면 사운드 v3</a>
+      </div>
+      <div class="note">
+        <strong>실험 방법:</strong> ① 아래 음원 중 하나를 고르고 <strong>재생</strong>을 누른 뒤 → ② <strong>원음 vs 튜닝 A/B 비교</strong> 버튼을 번갈아 누르며 차이를 들어보세요. 마음에 드는 조합을 찾으면 맨 아래 <strong>현재 튜닝 값 복사</strong>를 눌러 공유해 주세요!
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="grid" style="grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); margin-bottom: 12px;">
+        <div class="ctrl-box">
+          <div class="ctrl-title"><span>기본 음원 선택</span></div>
+          <select id="trackSelect">
+            <option value="./sound/dragon-studio-relaxing-rain-444802.mp3">🌧️ 비 소리 (Rain)</option>
+            <option value="./sound/eryliaa-forest-wind-with-birds-singing-364368.mp3">🌿 숲 바람과 새소리 (Forest)</option>
+            <option value="./sound/freesound_community-bonfire-6449.mp3">🔥 모닥불 소리 (Bonfire)</option>
+          </select>
+        </div>
+        <div class="ctrl-box">
+          <div class="ctrl-title"><span>전체 마스터 볼륨</span><span class="ctrl-val" id="masterVolVal">0.55</span></div>
+          <input id="masterVol" type="range" min="0.05" max="1.0" step="0.01" value="0.55" />
+        </div>
+      </div>
+
+      <div class="row">
+        <button id="playBtn" class="btn-primary">▶ 재생 시작</button>
+        <button id="stopBtn" class="btn-stop" disabled>⏹ 정지</button>
+        <button id="abBtn" class="btn-ab" disabled>🎧 현재: 감성 튜닝 ON (클릭 시 원음 비교)</button>
+        <label class="file-label" for="localFile">📁 내 음원 열기</label>
+        <input id="localFile" type="file" accept="audio/*" />
+      </div>
+      <div class="sub" id="statusText" style="margin-top:10px; color:var(--calm);">대기 중</div>
+    </div>
+
+    <div class="card">
+      <h2>⚡ 빠른 감성 프리셋</h2>
+      <div class="row">
+        <button class="btn-ghost preset-btn" data-preset="raw">원음 그대로 (튜닝 0)</button>
+        <button class="btn-warm preset-btn" data-preset="rainWindow">창문 너머 빗소리 (아늑한 방)</button>
+        <button class="btn-warm preset-btn" data-preset="eavesFire">처마 밑 모닥불 (파열음 억제)</button>
+        <button class="btn-warm preset-btn" data-preset="deepComfort">깊은 안도감 (은신처 + 화성 패드)</button>
+      </div>
+    </div>
+
+    <div class="card">
+      <h2>1. 은신처(Shelter) & 미세 위협 제거</h2>
+      <div class="grid">
+        <div class="ctrl-box">
+          <div class="ctrl-title"><span>창문/처마 차단감 (Low-pass)</span><span class="ctrl-val" id="lpfVal">2600 Hz</span></div>
+          <input id="lpfFreq" type="range" min="600" max="14000" step="100" value="2600" />
+          <div class="ctrl-desc">낮출수록 야외 노출감이 줄고, 따뜻한 실내 창문 너머에서 듣는 느낌(Cozy)이 강해집니다.</div>
+        </div>
+        <div class="ctrl-box">
+          <div class="ctrl-title"><span>아늑한 실내 잔향 (Room)</span><span class="ctrl-val" id="roomVal">25%</span></div>
+          <input id="roomMix" type="range" min="0" max="70" step="5" value="25" />
+          <div class="ctrl-desc">좁고 포근한 나무/패브릭 공간감을 입혀 귀를 감싸는 근접 안정감을 만듭니다.</div>
+        </div>
+        <div class="ctrl-box">
+          <div class="ctrl-title"><span>경계 대역 억제 (3.5kHz 딥)</span><span class="ctrl-val" id="dipVal">-7 dB</span></div>
+          <input id="safetyDip" type="range" min="-14" max="0" step="1" value="-7" />
+          <div class="ctrl-desc">새소리·빗소리의 날카로운 알람 대역(2.5~5kHz)을 눌러 청각 피로를 없앱니다.</div>
+        </div>
+        <div class="ctrl-box">
+          <div class="ctrl-title"><span>포근한 온기 부스트 (180Hz)</span><span class="ctrl-val" id="warmVal">+3 dB</span></div>
+          <input id="warmBoost" type="range" min="0" max="9" step="1" value="3" />
+          <div class="ctrl-desc">저중음역대에 따뜻한 몸통감을 더해 소리의 무게중심을 안정적으로 내립니다.</div>
+        </div>
+        <div class="ctrl-box">
+          <div class="ctrl-title"><span>돌발 피크 쿠션 (파열음 억제)</span><span class="ctrl-val" id="compVal">강함</span></div>
+          <select id="compMode">
+            <option value="strong" selected>강함 (모닥불 탁! 소리 등 부드럽게 억제)</option>
+            <option value="gentle">약함 (자연스러운 다이나믹 유지)</option>
+            <option value="off">끄기 (원본 다이나믹)</option>
+          </select>
+          <div class="ctrl-desc">장작 튀는 소리 같은 갑작스러운 어택(Transient)을 눌러 놀람 반사를 차단합니다.</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="card">
+      <h2>2. 긍정적 정서 공명 (따뜻한 화성 패드)</h2>
+      <div class="grid">
+        <div class="ctrl-box">
+          <div class="ctrl-title"><span>화성 테마</span></div>
+          <select id="padChord">
+            <option value="cmaj7" selected>포근한 Cmaj7 (따뜻한 위로)</option>
+            <option value="fmaj9">몽글몽글한 Fmaj9 (깊은 이완)</option>
+            <option value="penta">안정적 5음계 (무자극 평온)</option>
+            <option value="off">화성 패드 끄기</option>
+          </select>
+          <div class="ctrl-desc">자연음의 쓸쓸함/단조로움을 채워주는 유기적 저음·중음 화음 배음입니다.</div>
+        </div>
+        <div class="ctrl-box">
+          <div class="ctrl-title"><span>화성 패드 섞기 비율</span><span class="ctrl-val" id="padMixVal">14%</span></div>
+          <input id="padMix" type="range" min="0" max="40" step="1" value="14" />
+          <div class="ctrl-desc">10~18% 수준으로 "들릴 듯 말 듯" 깔렸을 때 가장 기분 좋고 자연스럽습니다.</div>
+        </div>
+      </div>
+
+      <div class="row" style="margin-top:14px; justify-content: space-between;">
+        <button id="copyBtn" class="btn-ghost">📋 현재 튜닝 값 복사하기</button>
+        <span class="sub" id="copyMsg"></span>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    const CHORDS = {
+      cmaj7: [130.81, 196.00, 246.94, 329.63], // C3, G3, B3, E4
+      fmaj9: [174.61, 220.00, 261.63, 329.63], // F3, A3, C4, E4
+      penta: [130.81, 146.83, 196.00, 220.00]  // C3, D3, G3, A3
+    };
+
+    let audioCtx = null;
+    let running = false;
+    let bypass = false;
+    let loopTimerId = null;
+    let activeSources = [];
+    let padNodes = [];
+    let decodedBuffer = null;
+    let customArrayBuffer = null;
+    let customFileName = "";
+
+    // Audio graph nodes
+    let sourceBus = null;
+    let lpfNode = null;
+    let dipNode = null;
+    let warmNode = null;
+    let compNode = null;
+    let dryGain = null;
+    let wetGain = null;
+    let convolver = null;
+    let bypassGain = null;
+    let tunedGain = null;
+    let padGain = null;
+    let masterGain = null;
+
+    const trackSelect = document.getElementById("trackSelect");
+    const localFile = document.getElementById("localFile");
+    const playBtn = document.getElementById("playBtn");
+    const stopBtn = document.getElementById("stopBtn");
+    const abBtn = document.getElementById("abBtn");
+    const statusText = document.getElementById("statusText");
+
+    const masterVol = document.getElementById("masterVol");
+    const lpfFreq = document.getElementById("lpfFreq");
+    const roomMix = document.getElementById("roomMix");
+    const safetyDip = document.getElementById("safetyDip");
+    const warmBoost = document.getElementById("warmBoost");
+    const compMode = document.getElementById("compMode");
+    const padChord = document.getElementById("padChord");
+    const padMix = document.getElementById("padMix");
+
+    function createCozyRoomIR(ctx, duration = 1.4, decay = 3.2) {
+      const len = Math.floor(ctx.sampleRate * duration);
+      const ir = ctx.createBuffer(2, len, ctx.sampleRate);
+      for (let ch = 0; ch < 2; ch++) {
+        const data = ir.getChannelData(ch);
+        let lp = 0;
+        for (let i = 0; i < len; i++) {
+          const env = Math.pow(1 - i / len, decay);
+          const white = (Math.random() * 2 - 1) * env;
+          // 고역대를 부드럽게 깎아 따뜻한 목조/패브릭 방 울림 생성
+          lp = lp * 0.72 + white * 0.28;
+          data[i] = lp;
+        }
+      }
+      return ir;
+    }
+
+    function applyParams() {
+      document.getElementById("masterVolVal").textContent = masterVol.value;
+      document.getElementById("lpfVal").textContent = `${lpfFreq.value} Hz`;
+      document.getElementById("roomVal").textContent = `${roomMix.value}%`;
+      document.getElementById("dipVal").textContent = `${safetyDip.value} dB`;
+      document.getElementById("warmVal").textContent = `+${warmBoost.value} dB`;
+      document.getElementById("padMixVal").textContent = `${padMix.value}%`;
+
+      if (!audioCtx || !running) return;
+      const t = audioCtx.currentTime;
+
+      masterGain.gain.setTargetAtTime(Number(masterVol.value), t, 0.05);
+      lpfNode.frequency.setTargetAtTime(Number(lpfFreq.value), t, 0.06);
+      dipNode.gain.setTargetAtTime(Number(safetyDip.value), t, 0.06);
+      warmNode.gain.setTargetAtTime(Number(warmBoost.value), t, 0.06);
+
+      const wet = Number(roomMix.value) / 100;
+      wetGain.gain.setTargetAtTime(wet, t, 0.06);
+      dryGain.gain.setTargetAtTime(1 - wet * 0.35, t, 0.06);
+
+      if (compMode.value === "strong") {
+        compNode.threshold.setTargetAtTime(-26, t, 0.05);
+        compNode.ratio.setTargetAtTime(8, t, 0.05);
+        compNode.attack.setTargetAtTime(0.002, t, 0.05);
+        compNode.release.setTargetAtTime(0.25, t, 0.05);
+      } else if (compMode.value === "gentle") {
+        compNode.threshold.setTargetAtTime(-18, t, 0.05);
+        compNode.ratio.setTargetAtTime(3, t, 0.05);
+        compNode.attack.setTargetAtTime(0.01, t, 0.05);
+        compNode.release.setTargetAtTime(0.3, t, 0.05);
+      } else {
+        compNode.threshold.setTargetAtTime(0, t, 0.05);
+        compNode.ratio.setTargetAtTime(1, t, 0.05);
+      }
+
+      const showTuned = !bypass;
+      tunedGain.gain.setTargetAtTime(showTuned ? 1 : 0, t, 0.04);
+      bypassGain.gain.setTargetAtTime(showTuned ? 0 : 1, t, 0.04);
+
+      const pMix = (!bypass && padChord.value !== "off") ? (Number(padMix.value) / 100) * 0.35 : 0;
+      padGain.gain.setTargetAtTime(pMix, t, 0.12);
+    }
+
+    function rebuildPad() {
+      padNodes.forEach(n => { try { n.stop(); } catch (_) {} });
+      padNodes = [];
+      if (!audioCtx || !padGain || padChord.value === "off") return;
+
+      const freqs = CHORDS[padChord.value] || CHORDS.cmaj7;
+      const padFilter = audioCtx.createBiquadFilter();
+      padFilter.type = "lowpass";
+      padFilter.frequency.value = 650;
+      padFilter.connect(padGain);
+
+      freqs.forEach((f, idx) => {
+        const osc = audioCtx.createOscillator();
+        osc.type = idx === 0 ? "sine" : "triangle";
+        osc.frequency.value = f;
+        osc.detune.value = (idx % 2 === 0 ? 1 : -1) * 4;
+        const g = audioCtx.createGain();
+        g.gain.value = idx === 0 ? 0.35 : 0.18;
+        osc.connect(g);
+        g.connect(padFilter);
+        osc.start();
+        padNodes.push(osc);
+      });
+    }
+
+    function startCrossfadeLoop(ctx, buffer, destNode) {
+      const dur = buffer.duration;
+      const overlap = Math.min(2.5, Math.max(0.2, dur * 0.2));
+      const stepMs = Math.max(200, (dur - overlap) * 1000);
+
+      const scheduleChunk = (startTime) => {
+        if (!running || !audioCtx) return;
+        const src = ctx.createBufferSource();
+        src.buffer = buffer;
+        const g = ctx.createGain();
+        g.gain.setValueAtTime(0.0001, startTime);
+        g.gain.linearRampToValueAtTime(1.0, startTime + overlap);
+        g.gain.setValueAtTime(1.0, Math.max(startTime + overlap, startTime + dur - overlap));
+        g.gain.linearRampToValueAtTime(0.0001, startTime + dur);
+        src.connect(g);
+        g.connect(destNode);
+        src.start(startTime);
+        activeSources.push(src);
+        if (activeSources.length > 4) activeSources.shift();
+      };
+
+      let nextStart = ctx.currentTime + 0.05;
+      scheduleChunk(nextStart);
+      loopTimerId = setInterval(() => {
+        if (!running || !audioCtx) return;
+        nextStart += dur - overlap;
+        if (nextStart < audioCtx.currentTime + 3.0) scheduleChunk(nextStart);
+      }, Math.min(stepMs, 1000));
+    }
+
+    async function start() {
+      stop();
+      running = true;
+      statusText.textContent = "음원 불러오는 중...";
+      playBtn.disabled = true;
+
+      try {
+        audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+        if (audioCtx.state === "suspended") await audioCtx.resume();
+
+        let arrBuf;
+        if (customArrayBuffer) {
+          arrBuf = customArrayBuffer.slice(0);
+        } else {
+          const res = await fetch(trackSelect.value);
+          if (!res.ok) throw new Error(`HTTP ${res.status}`);
+          arrBuf = await res.arrayBuffer();
+        }
+        decodedBuffer = await audioCtx.decodeAudioData(arrBuf);
+
+        sourceBus = audioCtx.createGain();
+        masterGain = audioCtx.createGain();
+        masterGain.connect(audioCtx.destination);
+
+        // Bypass 경로 (원음 그대로)
+        bypassGain = audioCtx.createGain();
+        sourceBus.connect(bypassGain);
+        bypassGain.connect(masterGain);
+
+        // Tuned 경로 (은신처 필터 + 미세 위협 제거 + 실내 잔향)
+        lpfNode = audioCtx.createBiquadFilter();
+        lpfNode.type = "lowpass";
+        lpfNode.Q.value = 0.6;
+
+        dipNode = audioCtx.createBiquadFilter();
+        dipNode.type = "peaking";
+        dipNode.frequency.value = 3500;
+        dipNode.Q.value = 1.1;
+
+        warmNode = audioCtx.createBiquadFilter();
+        warmNode.type = "lowshelf";
+        warmNode.frequency.value = 180;
+
+        compNode = audioCtx.createDynamicsCompressor();
+
+        convolver = audioCtx.createConvolver();
+        convolver.buffer = createCozyRoomIR(audioCtx);
+
+        dryGain = audioCtx.createGain();
+        wetGain = audioCtx.createGain();
+        tunedGain = audioCtx.createGain();
+
+        sourceBus.connect(compNode);
+        compNode.connect(warmNode);
+        warmNode.connect(dipNode);
+        dipNode.connect(lpfNode);
+
+        lpfNode.connect(dryGain);
+        lpfNode.connect(convolver);
+        convolver.connect(wetGain);
+
+        dryGain.connect(tunedGain);
+        wetGain.connect(tunedGain);
+        tunedGain.connect(masterGain);
+
+        // 따뜻한 화성 패드 경로
+        padGain = audioCtx.createGain();
+        padGain.connect(masterGain);
+        rebuildPad();
+
+        startCrossfadeLoop(audioCtx, decodedBuffer, sourceBus);
+        applyParams();
+
+        stopBtn.disabled = false;
+        abBtn.disabled = false;
+        const name = customArrayBuffer ? customFileName : trackSelect.options[trackSelect.selectedIndex].text;
+        statusText.textContent = `재생 중: ${name}`;
+      } catch (err) {
+        alert("음원 재생 오류: " + err.message);
+        stop();
+      }
+    }
+
+    function stop() {
+      running = false;
+      if (loopTimerId) { clearInterval(loopTimerId); loopTimerId = null; }
+      activeSources.forEach(s => { try { s.stop(); } catch (_) {} });
+      activeSources = [];
+      padNodes.forEach(n => { try { n.stop(); } catch (_) {} });
+      padNodes = [];
+      if (audioCtx) { audioCtx.close(); audioCtx = null; }
+      playBtn.disabled = false;
+      stopBtn.disabled = true;
+      abBtn.disabled = true;
+      statusText.textContent = "대기 중";
+    }
+
+    abBtn.onclick = () => {
+      bypass = !bypass;
+      abBtn.classList.toggle("bypass", bypass);
+      abBtn.textContent = bypass
+        ? "🎧 현재: 원음 그대로 (클릭 시 감성 튜닝 복귀)"
+        : "🎧 현재: 감성 튜닝 ON (클릭 시 원음 비교)";
+      applyParams();
+    };
+
+    localFile.onchange = async (e) => {
+      const f = e.target.files[0];
+      if (!f) return;
+      customFileName = f.name;
+      customArrayBuffer = await f.arrayBuffer();
+      if (running) start();
+    };
+
+    trackSelect.onchange = () => {
+      customArrayBuffer = null;
+      if (running) start();
+    };
+
+    [masterVol, lpfFreq, roomMix, safetyDip, warmBoost, padMix].forEach(el => {
+      el.oninput = applyParams;
+    });
+    compMode.onchange = applyParams;
+    padChord.onchange = () => {
+      rebuildPad();
+      applyParams();
+    };
+
+    const PRESETS = {
+      raw: { lpf: 14000, room: 0, dip: 0, warm: 0, comp: "off", chord: "off", pad: 0 },
+      rainWindow: { lpf: 2200, room: 30, dip: -6, warm: 4, comp: "gentle", chord: "cmaj7", pad: 12 },
+      eavesFire: { lpf: 2800, room: 20, dip: -8, warm: 5, comp: "strong", chord: "fmaj9", pad: 10 },
+      deepComfort: { lpf: 1700, room: 35, dip: -9, warm: 5, comp: "strong", chord: "fmaj9", pad: 18 }
+    };
+
+    document.querySelectorAll(".preset-btn").forEach(btn => {
+      btn.onclick = () => {
+        const p = PRESETS[btn.dataset.preset];
+        if (!p) return;
+        lpfFreq.value = p.lpf;
+        roomMix.value = p.room;
+        safetyDip.value = p.dip;
+        warmBoost.value = p.warm;
+        compMode.value = p.comp;
+        padChord.value = p.chord;
+        padMix.value = p.pad;
+        bypass = false;
+        abBtn.classList.remove("bypass");
+        abBtn.textContent = "🎧 현재: 감성 튜닝 ON (클릭 시 원음 비교)";
+        rebuildPad();
+        applyParams();
+      };
+    });
+
+    document.getElementById("copyBtn").onclick = async () => {
+      const summary = {
+        track: customArrayBuffer ? customFileName : trackSelect.options[trackSelect.selectedIndex].text,
+        lpfHz: Number(lpfFreq.value),
+        roomMixPct: Number(roomMix.value),
+        safetyDipDb: Number(safetyDip.value),
+        warmBoostDb: Number(warmBoost.value),
+        compressor: compMode.value,
+        padChord: padChord.value,
+        padMixPct: Number(padMix.value)
+      };
+      try {
+        await navigator.clipboard.writeText(JSON.stringify(summary, null, 2));
+        document.getElementById("copyMsg").textContent = "클립보드에 복사되었습니다! 채팅창에 붙여넣어 주세요.";
+      } catch {
+        document.getElementById("copyMsg").textContent = JSON.stringify(summary);
+      }
+    };
+
+    playBtn.onclick = start;
+    stopBtn.onclick = stop;
+    applyParams();
+  </script>
+</body>
+</html>
