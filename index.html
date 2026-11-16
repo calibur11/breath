@@ -149,6 +149,10 @@
           파도 밝기 / 컷오프 (<span id="brightVal">420</span> Hz)
           <input id="brightness" type="range" min="180" max="900" step="10" value="420" />
         </label>
+        <label>
+          변조 폭 / 반응 강도 (<span id="depthVal">85</span>%)
+          <input id="modDepth" type="range" min="20" max="100" step="5" value="85" />
+        </label>
       </div>
     </div>
 
@@ -176,6 +180,7 @@
     let timeData = null;
 
     let noiseFloor = 0.0005;
+    let signalPeak = 0.003;
     let smoothEnvelope = 0;
 
     const startMicBtn = document.getElementById("startMicBtn");
@@ -186,6 +191,7 @@
     const baseVolInput = document.getElementById("baseVol");
     const sensInput = document.getElementById("sensitivity");
     const brightInput = document.getElementById("brightness");
+    const depthInput = document.getElementById("modDepth");
 
     const statusText = document.getElementById("statusText");
     const breathVal = document.getElementById("breathVal");
@@ -197,6 +203,7 @@
     baseVolInput.oninput = () => document.getElementById("baseVolVal").textContent = baseVolInput.value;
     sensInput.oninput = () => document.getElementById("sensVal").textContent = sensInput.value;
     brightInput.oninput = () => document.getElementById("brightVal").textContent = brightInput.value;
+    depthInput.oninput = () => document.getElementById("depthVal").textContent = depthInput.value;
 
     function createBrownNoiseBuffer(ctx, seconds = 6) {
       // 루프 티가 나지 않도록 긴 버퍼 + 크로스페이드 처리된 브라운 노이즈 생성
@@ -307,6 +314,7 @@
           silentGain.connect(audioCtx.destination);
 
           noiseFloor = 0.0005;
+          signalPeak = 0.003;
           statusText.textContent = "마이크 감지 중";
           micDebug.textContent = `연결된 마이크: ${micName} (${audioCtx.state})`;
         } catch (err) {
@@ -371,24 +379,33 @@
         for (let i = 0; i < timeData.length; i++) sum += timeData[i] * timeData[i];
         const rms = Math.sqrt(sum / timeData.length);
 
-        // 아주 느리게 배경 소음 바닥(noiseFloor) 적응
-        noiseFloor = noiseFloor * 0.992 + Math.min(rms, noiseFloor * 1.5) * 0.008;
-        const delta = Math.max(0, rms - noiseFloor * 1.08);
+        // 자동 Min-Max 범위 정규화: 태블릿 거리에 상관없이 작은 숨소리도 0~100%로 펼쳐줌
+        noiseFloor = noiseFloor * 0.99 + Math.min(rms, noiseFloor * 1.4) * 0.01;
+        signalPeak = Math.max(rms, signalPeak * 0.992, noiseFloor + 0.0004);
+
         const sens = Number(sensInput.value);
-        targetBreath = Math.min(1, delta * sens * 90);
-        micDebug.textContent = `장치: ${micStream?.getAudioTracks()[0]?.label || '기본'} | 실시간 RMS: ${rms.toFixed(5)} | 기준선: ${noiseFloor.toFixed(5)}`;
+        const span = Math.max(signalPeak - noiseFloor, 0.0004);
+        const normalized = Math.max(0, (rms - noiseFloor * 1.05) / span);
+        targetBreath = Math.min(1, normalized * (sens / 2.5));
+        micDebug.textContent = `장치: ${micStream?.getAudioTracks()[0]?.label || '기본'} | RMS: ${rms.toFixed(5)} (바닥 ${noiseFloor.toFixed(5)} ~ 피크 ${signalPeak.toFixed(5)})`;
       }
 
       // 급격한 튐 방지 (부드러운 파도 포락선)
-      const alpha = targetBreath > smoothEnvelope ? 0.12 : 0.045;
+      const alpha = targetBreath > smoothEnvelope ? 0.16 : 0.055;
       smoothEnvelope = smoothEnvelope * (1 - alpha) + targetBreath * alpha;
 
       const baseVol = Number(baseVolInput.value);
       const baseCutoff = Number(brightInput.value);
+      const depth = Number(depthInput.value) / 100;
 
-      // 호흡에 맞춰 볼륨과 필터 주파수가 부드럽게 열리고 닫힘
-      const modVol = baseVol * (0.65 + 0.75 * smoothEnvelope);
-      const modCutoff = baseCutoff * (0.6 + 1.1 * smoothEnvelope);
+      // 귀로 확실히 체감되는 넓은 파도 스윕 (볼륨 + 주파수 컷오프 동시 변조)
+      const volMin = baseVol * (1 - 0.72 * depth);
+      const volMax = baseVol * (1 + 1.45 * depth);
+      const modVol = volMin + (volMax - volMin) * smoothEnvelope;
+
+      const cutMin = Math.max(110, baseCutoff * (1 - 0.65 * depth));
+      const cutMax = Math.min(2400, baseCutoff * (1 + 2.6 * depth));
+      const modCutoff = cutMin + (cutMax - cutMin) * smoothEnvelope;
 
       const now = audioCtx.currentTime;
       masterGain.gain.setTargetAtTime(modVol, now, 0.08);
