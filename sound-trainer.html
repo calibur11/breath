@@ -1,0 +1,771 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>AI 사운드 취향 학습기 (블라인드 A/B 토너먼트)</title>
+  <style>
+    :root {
+      --bg: #0b101b;
+      --card: #131b2e;
+      --border: #23304c;
+      --text: #e6edf7;
+      --muted: #8fa3c4;
+      --accent: #5fa8ff;
+      --calm: #4fd1c5;
+      --warm: #f6ad55;
+      --danger: #fc8181;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      display: flex;
+      justify-content: center;
+      padding: 20px 16px;
+      min-height: 100vh;
+    }
+    .wrap {
+      width: 100%;
+      max-width: 780px;
+      display: flex;
+      flex-direction: column;
+      gap: 16px;
+    }
+    .card {
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: 14px;
+      padding: 18px 20px;
+    }
+    .header-row {
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-start;
+      gap: 12px;
+      flex-wrap: wrap;
+    }
+    h1 { margin: 0 0 6px; font-size: 1.25rem; }
+    h2 { margin: 0 0 10px; font-size: 1.02rem; color: var(--calm); }
+    .sub { color: var(--muted); font-size: 0.86rem; line-height: 1.5; margin: 0; }
+    .nav-link {
+      color: var(--accent);
+      text-decoration: none;
+      font-size: 0.84rem;
+      padding: 7px 12px;
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      background: #0e1525;
+      white-space: nowrap;
+    }
+    .row { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; }
+    button, .file-label {
+      border: none;
+      border-radius: 10px;
+      padding: 11px 16px;
+      font-size: 0.92rem;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all 0.15s;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 6px;
+    }
+    button:disabled { opacity: 0.4; cursor: not-allowed; }
+    .btn-primary { background: var(--accent); color: #07111f; }
+    .btn-stop { background: #e05d6f; color: #fff; }
+    .btn-ghost { background: #1c2740; color: var(--text); border: 1px solid var(--border); }
+    .file-label { background: #1d3549; color: var(--calm); border: 1px solid #2b5470; }
+    input[type="file"] { display: none; }
+    select, input[type="range"] {
+      background: #09101d;
+      color: var(--text);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 8px 10px;
+      accent-color: var(--accent);
+    }
+    .progress-bar {
+      width: 100%;
+      height: 10px;
+      background: #09101d;
+      border-radius: 999px;
+      overflow: hidden;
+      border: 1px solid var(--border);
+      margin-top: 10px;
+    }
+    .progress-fill {
+      height: 100%;
+      background: linear-gradient(90deg, var(--accent), var(--calm));
+      width: 8%;
+      transition: width 0.25s ease;
+    }
+    .ab-arena {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 14px;
+      margin-top: 14px;
+    }
+    .listen-card {
+      background: #0d1424;
+      border: 2px solid var(--border);
+      border-radius: 14px;
+      padding: 20px 16px;
+      text-align: center;
+      cursor: pointer;
+      transition: all 0.15s;
+    }
+    .listen-card.active {
+      border-color: var(--calm);
+      background: rgba(79, 209, 197, 0.12);
+      box-shadow: 0 0 20px rgba(79, 209, 197, 0.15);
+    }
+    .listen-title { font-size: 1.2rem; font-weight: 700; margin-bottom: 6px; }
+    .listen-sub { font-size: 0.8rem; color: var(--muted); }
+    .vote-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 10px;
+      margin-top: 14px;
+    }
+    .btn-vote-a, .btn-vote-b {
+      background: #17323b;
+      color: var(--calm);
+      border: 1px solid var(--calm);
+      padding: 14px;
+      font-size: 0.96rem;
+    }
+    .btn-vote-a:hover, .btn-vote-b:hover { background: #1f4551; }
+    .btn-vote-tie {
+      background: #1c2740;
+      color: var(--muted);
+      border: 1px solid var(--border);
+    }
+    .btn-vote-bad {
+      background: rgba(252, 129, 129, 0.14);
+      color: var(--danger);
+      border: 1px solid var(--danger);
+    }
+    .dna-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+      gap: 10px;
+      margin-top: 12px;
+    }
+    .dna-item {
+      background: #0d1424;
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 10px 12px;
+    }
+    .dna-item .k { font-size: 0.75rem; color: var(--muted); }
+    .dna-item .v { font-size: 1.02rem; font-weight: 700; color: var(--calm); margin-top: 4px; }
+    .note {
+      font-size: 0.82rem;
+      color: var(--muted);
+      line-height: 1.5;
+      background: #0d1424;
+      border-left: 3px solid var(--calm);
+      padding: 10px 12px;
+      border-radius: 6px;
+      margin-top: 10px;
+    }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <div class="card">
+      <div class="header-row">
+        <div>
+          <h1>🧬 AI 사운드 취향 학습기 (블라인드 A/B)</h1>
+          <p class="sub">
+            복잡한 슬라이더를 직접 만질 필요 없이, <strong>A와 B 두 소리를 번갈아 듣고 더 편안한 쪽을 고르면</strong><br />
+            알고리즘이 12라운드에 걸쳐 대표님이 가장 안전감·기분 좋음을 느끼는 <strong>사운드 DNA</strong>로 수렴합니다.
+          </p>
+        </div>
+        <div class="row">
+          <a class="nav-link" href="./sound-tuning.html">🎛️ 수동 튜닝 콘솔</a>
+          <a class="nav-link" href="./index.html">← 홈으로</a>
+        </div>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="row" style="justify-content: space-between;">
+        <div class="row">
+          <select id="trackSelect">
+            <option value="./sound/dragon-studio-relaxing-rain-444802.mp3">🌧️ 비 소리 (Rain)</option>
+            <option value="./sound/eryliaa-forest-wind-with-birds-singing-364368.mp3">🌿 숲 바람과 새소리 (Forest)</option>
+            <option value="./sound/freesound_community-bonfire-6449.mp3">🔥 모닥불 소리 (Bonfire)</option>
+          </select>
+          <label class="file-label" for="localFile">📁 내 음원</label>
+          <input id="localFile" type="file" accept="audio/*" />
+          <button id="startBtn" class="btn-primary">▶ 학습 시작 (오디오 켜기)</button>
+          <button id="stopBtn" class="btn-stop" disabled>⏹ 정지</button>
+        </div>
+        <div class="row">
+          <span class="sub">볼륨</span>
+          <input id="masterVol" type="range" min="0.05" max="1.0" step="0.02" value="0.55" style="width:110px;" />
+        </div>
+      </div>
+      <div class="sub" id="statusText" style="margin-top:8px; color:var(--calm);">
+        먼저 '▶ 학습 시작'을 눌러 소리를 켠 뒤, 아래 A와 B를 번갈아 클릭해 들어보세요.
+      </div>
+    </div>
+
+    <div class="card" id="arenaCard">
+      <div class="row" style="justify-content: space-between;">
+        <h2 id="roundTitle" style="margin:0;">라운드 1 / 12 — 큰 취향 축 탐색</h2>
+        <span class="sub" id="roundHint">은신처 실내감 vs 야외 원음 비교</span>
+      </div>
+      <div class="progress-bar"><div class="progress-fill" id="progressFill"></div></div>
+
+      <div class="ab-arena">
+        <div class="listen-card active" id="cardA">
+          <div class="listen-title">🎧 A 소리 듣기</div>
+          <div class="listen-sub" id="stateA">현재 재생 중 (클릭 시 전환)</div>
+        </div>
+        <div class="listen-card" id="cardB">
+          <div class="listen-title">🎧 B 소리 듣기</div>
+          <div class="listen-sub" id="stateB">클릭해서 B 소리 들어보기</div>
+        </div>
+      </div>
+
+      <div class="vote-grid">
+        <button class="btn-vote-a" id="voteABtn" disabled>👍 A가 더 편안하고 좋다</button>
+        <button class="btn-vote-b" id="voteBBtn" disabled>👍 B가 더 편안하고 좋다</button>
+        <button class="btn-vote-tie" id="voteTieBtn" disabled>😐 둘 다 비슷하다</button>
+        <button class="btn-vote-bad" id="voteBadBtn" disabled>🚫 둘 다 별로 / 거슬린다</button>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="row" style="justify-content: space-between;">
+        <h2 style="margin:0;">📊 실시간 수렴 중인 사운드 DNA</h2>
+        <div class="row">
+          <button id="listenBestBtn" class="btn-ghost" disabled>🏆 현재 최적값 듣기</button>
+          <button id="listenRawBtn" class="btn-ghost" disabled>🎧 가공 전 원음 듣기</button>
+        </div>
+      </div>
+
+      <div class="dna-grid">
+        <div class="dna-item"><div class="k">창문/처마 차단(LPF)</div><div class="v" id="dnaLpf">-</div></div>
+        <div class="dna-item"><div class="k">실내 아늑한 잔향</div><div class="v" id="dnaRoom">-</div></div>
+        <div class="dna-item"><div class="k">3.5kHz 경계음 억제</div><div class="v" id="dnaDip">-</div></div>
+        <div class="dna-item"><div class="k">180Hz 저중음 온기</div><div class="v" id="dnaWarm">-</div></div>
+        <div class="dna-item"><div class="k">돌발 파열음 쿠션</div><div class="v" id="dnaComp">-</div></div>
+        <div class="dna-item"><div class="k">따뜻한 화성 배음</div><div class="v" id="dnaPad">-</div></div>
+      </div>
+
+      <div class="note" id="aiSummaryBox">
+        라운드가 진행될수록 대표님이 선호하는 음향 프로파일이 여기에 요약됩니다. (언제든 아래 버튼으로 결과를 복사해 채팅창에 붙여넣으실 수 있습니다.)
+      </div>
+
+      <div class="row" style="margin-top:14px; justify-content: space-between;">
+        <div class="row">
+          <button id="copyResultBtn" class="btn-primary">📋 AI 분석용 학습 결과 복사하기</button>
+          <button id="resetBtn" class="btn-ghost">🔄 1라운드부터 다시 하기</button>
+        </div>
+        <span class="sub" id="copyMsg"></span>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    const TOTAL_ROUNDS = 12;
+    const CHORDS = {
+      off: [],
+      cmaj7: [130.81, 196.00, 246.94, 329.63],
+      fmaj9: [174.61, 220.00, 261.63, 329.63],
+      penta: [130.81, 146.83, 196.00, 220.00]
+    };
+
+    // 초기 시드 라운드 (1~5라운드는 직교 탐색으로 큰 축을 빠르게 파악)
+    const SEED_PAIRS = [
+      {
+        hint: "야외 노출 원음 vs 창문 너머 은신처 사운드",
+        A: { lpfHz: 11500, roomMixPct: 5, safetyDipDb: -1, warmBoostDb: 0, comp: "off", padChord: "off", padMixPct: 0 },
+        B: { lpfHz: 2300, roomMixPct: 28, safetyDipDb: -7, warmBoostDb: 4, comp: "strong", padChord: "off", padMixPct: 0 }
+      },
+      {
+        hint: "순수 자연음 단독 vs 은은한 화성 배음(Warm Pad) 공명",
+        A: null, // 직전 승자 기반 (패드 없음)
+        B: null  // 직전 승자 기반 + 패드 15%
+      },
+      {
+        hint: "깊고 아늑한 실내 차단감(1600Hz) vs 적당히 트인 처마 밑(3800Hz)",
+        A: { lpfHz: 1600, roomMixPct: 35 },
+        B: { lpfHz: 3800, roomMixPct: 15 }
+      },
+      {
+        hint: "날카로운 고음 강력 억제(-11dB) & 온기 강조 vs 자연스러운 선명도(-3dB)",
+        A: { safetyDipDb: -11, warmBoostDb: 6, comp: "strong" },
+        B: { safetyDipDb: -3, warmBoostDb: 2, comp: "gentle" }
+      },
+      {
+        hint: "화성 배음 색채 비교: 포근한 Cmaj7 vs 깊은 이완 Fmaj9",
+        A: { padChord: "cmaj7" },
+        B: { padChord: "fmaj9" }
+      }
+    ];
+
+    let round = 1;
+    let champion = {
+      lpfHz: 2600,
+      roomMixPct: 25,
+      safetyDipDb: -7,
+      warmBoostDb: 3,
+      comp: "strong",
+      padChord: "cmaj7",
+      padMixPct: 13
+    };
+    let candA = null;
+    let candB = null;
+    let currentListening = "A"; // "A" | "B" | "BEST" | "RAW"
+    let historyLog = [];
+    let rejectedProfiles = [];
+
+    // Audio engine state
+    let audioCtx = null;
+    let running = false;
+    let loopTimerId = null;
+    let activeSources = [];
+    let padNodes = [];
+    let currentPadChord = "off";
+    let customArrayBuffer = null;
+    let customFileName = "";
+
+    let sourceBus, lpfNode, dipNode, warmNode, compNode, convolver, dryGain, wetGain, padGain, masterGain;
+
+    const trackSelect = document.getElementById("trackSelect");
+    const localFile = document.getElementById("localFile");
+    const startBtn = document.getElementById("startBtn");
+    const stopBtn = document.getElementById("stopBtn");
+    const masterVol = document.getElementById("masterVol");
+    const statusText = document.getElementById("statusText");
+
+    const roundTitle = document.getElementById("roundTitle");
+    const roundHint = document.getElementById("roundHint");
+    const progressFill = document.getElementById("progressFill");
+    const cardA = document.getElementById("cardA");
+    const cardB = document.getElementById("cardB");
+    const stateA = document.getElementById("stateA");
+    const stateB = document.getElementById("stateB");
+
+    const voteABtn = document.getElementById("voteABtn");
+    const voteBBtn = document.getElementById("voteBBtn");
+    const voteTieBtn = document.getElementById("voteTieBtn");
+    const voteBadBtn = document.getElementById("voteBadBtn");
+    const listenBestBtn = document.getElementById("listenBestBtn");
+    const listenRawBtn = document.getElementById("listenRawBtn");
+
+    function clamp(v, min, max) { return Math.min(max, Math.max(min, v)); }
+
+    function mutateProfile(base, scale) {
+      const chords = ["off", "cmaj7", "fmaj9", "penta"];
+      const comps = ["off", "gentle", "strong"];
+      const next = {
+        lpfHz: Math.round(clamp(base.lpfHz + (Math.random() * 2 - 1) * 2800 * scale, 700, 12000) / 100) * 100,
+        roomMixPct: Math.round(clamp(base.roomMixPct + (Math.random() * 2 - 1) * 30 * scale, 0, 60)),
+        safetyDipDb: Math.round(clamp(base.safetyDipDb + (Math.random() * 2 - 1) * 8 * scale, -14, 0)),
+        warmBoostDb: Math.round(clamp(base.warmBoostDb + (Math.random() * 2 - 1) * 5 * scale, 0, 8)),
+        comp: Math.random() < 0.35 * scale ? comps[Math.floor(Math.random() * comps.length)] : base.comp,
+        padChord: Math.random() < 0.35 * scale ? chords[Math.floor(Math.random() * chords.length)] : base.padChord,
+        padMixPct: Math.round(clamp(base.padMixPct + (Math.random() * 2 - 1) * 14 * scale, 0, 32))
+      };
+      if (next.padChord === "off") next.padMixPct = 0;
+      else if (next.padMixPct < 5) next.padMixPct = 10;
+      return next;
+    }
+
+    function prepareRoundCandidates() {
+      if (round === 1) {
+        candA = { ...SEED_PAIRS[0].A };
+        candB = { ...SEED_PAIRS[0].B };
+        roundHint.textContent = SEED_PAIRS[0].hint;
+      } else if (round === 2) {
+        candA = { ...champion, padChord: "off", padMixPct: 0 };
+        candB = { ...champion, padChord: "cmaj7", padMixPct: 15 };
+        roundHint.textContent = SEED_PAIRS[1].hint;
+      } else if (round === 3) {
+        candA = { ...champion, ...SEED_PAIRS[2].A };
+        candB = { ...champion, ...SEED_PAIRS[2].B };
+        roundHint.textContent = SEED_PAIRS[2].hint;
+      } else if (round === 4) {
+        candA = { ...champion, ...SEED_PAIRS[3].A };
+        candB = { ...champion, ...SEED_PAIRS[3].B };
+        roundHint.textContent = SEED_PAIRS[3].hint;
+      } else if (round === 5) {
+        const mix = Math.max(12, champion.padMixPct);
+        candA = { ...champion, padChord: "cmaj7", padMixPct: mix };
+        candB = { ...champion, padChord: "fmaj9", padMixPct: mix };
+        roundHint.textContent = SEED_PAIRS[4].hint;
+      } else {
+        const scale = Math.max(0.15, 0.55 - (round - 5) * 0.05);
+        candA = { ...champion };
+        candB = mutateProfile(champion, scale);
+        roundHint.textContent = `챔피언 사운드 vs 미세 변형 후보 (정밀도 ${Math.round((1 - scale) * 100)}%)`;
+        // A/B 위치 랜덤 스왑 (위치 편향 방지)
+        if (Math.random() < 0.5) {
+          const tmp = candA; candA = candB; candB = tmp;
+        }
+      }
+
+      roundTitle.textContent = round <= TOTAL_ROUNDS
+        ? `라운드 ${round} / ${TOTAL_ROUNDS}`
+        : `추가 정밀 튜닝 (${round}라운드)`;
+      progressFill.style.width = `${Math.min(100, Math.round((round / TOTAL_ROUNDS) * 100))}%`;
+
+      selectListening("A");
+      updateDnaDisplay();
+    }
+
+    function updateDnaDisplay() {
+      document.getElementById("dnaLpf").textContent = `${champion.lpfHz} Hz`;
+      document.getElementById("dnaRoom").textContent = `${champion.roomMixPct}%`;
+      document.getElementById("dnaDip").textContent = `${champion.safetyDipDb} dB`;
+      document.getElementById("dnaWarm").textContent = `+${champion.warmBoostDb} dB`;
+      document.getElementById("dnaComp").textContent = champion.comp;
+      document.getElementById("dnaPad").textContent = champion.padChord === "off"
+        ? "꺼짐 (순수 자연음)"
+        : `${champion.padChord.toUpperCase()} (${champion.padMixPct}%)`;
+
+      const shelterDesc = champion.lpfHz <= 2000 ? "깊은 실내 은신처감" : (champion.lpfHz <= 4200 ? "아늑한 창문/처마 너머" : "개방된 야외 현장감");
+      const padDesc = champion.padChord === "off" ? "배음 없는 순수 자연음" : `${champion.padChord.toUpperCase()} 화성 배음 ${champion.padMixPct}% 블렌딩`;
+      document.getElementById("aiSummaryBox").innerHTML =
+        `<strong>현재 수렴된 사운드 성향:</strong> [${shelterDesc}] + [3.5kHz 경계 대역 ${champion.safetyDipDb}dB 억제] + [저중음 온기 +${champion.warmBoostDb}dB] + [${padDesc}] (누적 선택 ${historyLog.length}회)`;
+    }
+
+    function createCozyRoomIR(ctx, duration = 1.4, decay = 3.2) {
+      const len = Math.floor(ctx.sampleRate * duration);
+      const ir = ctx.createBuffer(2, len, ctx.sampleRate);
+      for (let ch = 0; ch < 2; ch++) {
+        const data = ir.getChannelData(ch);
+        let lp = 0;
+        for (let i = 0; i < len; i++) {
+          const env = Math.pow(1 - i / len, decay);
+          const white = (Math.random() * 2 - 1) * env;
+          lp = lp * 0.72 + white * 0.28;
+          data[i] = lp;
+        }
+      }
+      return ir;
+    }
+
+    function rebuildPadIfNeeded(chordName) {
+      if (!audioCtx || !padGain || currentPadChord === chordName) return;
+      currentPadChord = chordName;
+      padNodes.forEach(n => { try { n.stop(); } catch (_) {} });
+      padNodes = [];
+      if (chordName === "off" || !CHORDS[chordName]) return;
+
+      const freqs = CHORDS[chordName];
+      const padFilter = audioCtx.createBiquadFilter();
+      padFilter.type = "lowpass";
+      padFilter.frequency.value = 650;
+      padFilter.connect(padGain);
+
+      freqs.forEach((f, idx) => {
+        const osc = audioCtx.createOscillator();
+        osc.type = idx === 0 ? "sine" : "triangle";
+        osc.frequency.value = f;
+        osc.detune.value = (idx % 2 === 0 ? 1 : -1) * 4;
+        const g = audioCtx.createGain();
+        g.gain.value = idx === 0 ? 0.35 : 0.18;
+        osc.connect(g);
+        g.connect(padFilter);
+        osc.start();
+        padNodes.push(osc);
+      });
+    }
+
+    function applyAudioProfile(p) {
+      if (!audioCtx || !running) return;
+      const t = audioCtx.currentTime;
+
+      masterGain.gain.setTargetAtTime(Number(masterVol.value), t, 0.04);
+      lpfNode.frequency.setTargetAtTime(p.lpfHz, t, 0.05);
+      dipNode.gain.setTargetAtTime(p.safetyDipDb, t, 0.05);
+      warmNode.gain.setTargetAtTime(p.warmBoostDb, t, 0.05);
+
+      const wet = p.roomMixPct / 100;
+      wetGain.gain.setTargetAtTime(wet, t, 0.05);
+      dryGain.gain.setTargetAtTime(1 - wet * 0.35, t, 0.05);
+
+      if (p.comp === "strong") {
+        compNode.threshold.setTargetAtTime(-26, t, 0.05);
+        compNode.ratio.setTargetAtTime(8, t, 0.05);
+      } else if (p.comp === "gentle") {
+        compNode.threshold.setTargetAtTime(-18, t, 0.05);
+        compNode.ratio.setTargetAtTime(3, t, 0.05);
+      } else {
+        compNode.threshold.setTargetAtTime(0, t, 0.05);
+        compNode.ratio.setTargetAtTime(1, t, 0.05);
+      }
+
+      rebuildPadIfNeeded(p.padChord);
+      const pMix = p.padChord !== "off" ? (p.padMixPct / 100) * 0.35 : 0;
+      padGain.gain.setTargetAtTime(pMix, t, 0.08);
+    }
+
+    function selectListening(which) {
+      currentListening = which;
+      cardA.classList.toggle("active", which === "A");
+      cardB.classList.toggle("active", which === "B");
+      stateA.textContent = which === "A" ? "🔊 현재 재생 중" : "클릭해서 A 들어보기";
+      stateB.textContent = which === "B" ? "🔊 현재 재생 중" : "클릭해서 B 들어보기";
+
+      if (which === "A") applyAudioProfile(candA);
+      else if (which === "B") applyAudioProfile(candB);
+      else if (which === "BEST") applyAudioProfile(champion);
+      else if (which === "RAW") {
+        applyAudioProfile({ lpfHz: 14000, roomMixPct: 0, safetyDipDb: 0, warmBoostDb: 0, comp: "off", padChord: "off", padMixPct: 0 });
+      }
+    }
+
+    function blendProfiles(w, l, weightW = 0.72) {
+      const b = 1 - weightW;
+      return {
+        lpfHz: Math.round((w.lpfHz * weightW + l.lpfHz * b) / 50) * 50,
+        roomMixPct: Math.round(w.roomMixPct * weightW + l.roomMixPct * b),
+        safetyDipDb: Math.round(w.safetyDipDb * weightW + l.safetyDipDb * b),
+        warmBoostDb: Math.round(w.warmBoostDb * weightW + l.warmBoostDb * b),
+        comp: w.comp,
+        padChord: w.padChord,
+        padMixPct: w.padChord === "off" ? 0 : Math.round(w.padMixPct * weightW + l.padMixPct * b)
+      };
+    }
+
+    function handleVote(choice) {
+      const trackName = customArrayBuffer ? customFileName : trackSelect.options[trackSelect.selectedIndex].text;
+      historyLog.push({
+        round,
+        track: trackName,
+        choice,
+        candA: { ...candA },
+        candB: { ...candB }
+      });
+
+      if (choice === "A") {
+        champion = round <= 5 ? { ...candA } : blendProfiles(candA, champion, 0.8);
+      } else if (choice === "B") {
+        champion = round <= 5 ? { ...candB } : blendProfiles(candB, champion, 0.8);
+      } else if (choice === "TIE") {
+        champion = blendProfiles(candA, candB, 0.5);
+      } else if (choice === "BAD") {
+        rejectedProfiles.push({ ...candA }, { ...candB });
+        // 둘 다 거슬릴 때는 고역대를 더 낮추고 안전 딥을 깊게 한 반대 성향으로 이동
+        champion = mutateProfile({
+          lpfHz: Math.max(1100, 5000 - Math.round((candA.lpfHz + candB.lpfHz) / 2)),
+          roomMixPct: 25,
+          safetyDipDb: -9,
+          warmBoostDb: 4,
+          comp: "strong",
+          padChord: champion.padChord === "off" ? "fmaj9" : "off",
+          padMixPct: champion.padChord === "off" ? 12 : 0
+        }, 0.3);
+      }
+
+      round++;
+      prepareRoundCandidates();
+      if (round === TOTAL_ROUNDS + 1) {
+        statusText.textContent = "🎉 12라운드 기본 학습이 완료되었습니다! '🏆 현재 최적값 듣기'로 결과를 확인하거나 '📋 AI 분석용 학습 결과 복사하기'를 눌러주세요.";
+      }
+    }
+
+    function startCrossfadeLoop(ctx, buffer, destNode) {
+      const dur = buffer.duration;
+      const overlap = Math.min(2.5, Math.max(0.2, dur * 0.2));
+      const stepMs = Math.max(200, (dur - overlap) * 1000);
+
+      const scheduleChunk = (startTime) => {
+        if (!running || !audioCtx) return;
+        const src = ctx.createBufferSource();
+        src.buffer = buffer;
+        const g = ctx.createGain();
+        g.gain.setValueAtTime(0.0001, startTime);
+        g.gain.linearRampToValueAtTime(1.0, startTime + overlap);
+        g.gain.setValueAtTime(1.0, Math.max(startTime + overlap, startTime + dur - overlap));
+        g.gain.linearRampToValueAtTime(0.0001, startTime + dur);
+        src.connect(g);
+        g.connect(destNode);
+        src.start(startTime);
+        activeSources.push(src);
+        if (activeSources.length > 4) activeSources.shift();
+      };
+
+      let nextStart = ctx.currentTime + 0.05;
+      scheduleChunk(nextStart);
+      loopTimerId = setInterval(() => {
+        if (!running || !audioCtx) return;
+        nextStart += dur - overlap;
+        if (nextStart < audioCtx.currentTime + 3.0) scheduleChunk(nextStart);
+      }, Math.min(stepMs, 1000));
+    }
+
+    async function startAudio() {
+      stopAudio();
+      running = true;
+      startBtn.disabled = true;
+      statusText.textContent = "음원 로딩 중...";
+
+      try {
+        audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+        if (audioCtx.state === "suspended") await audioCtx.resume();
+
+        let arrBuf;
+        if (customArrayBuffer) {
+          arrBuf = customArrayBuffer.slice(0);
+        } else {
+          const res = await fetch(trackSelect.value);
+          if (!res.ok) throw new Error(`HTTP ${res.status}`);
+          arrBuf = await res.arrayBuffer();
+        }
+        const decoded = await audioCtx.decodeAudioData(arrBuf);
+
+        sourceBus = audioCtx.createGain();
+        masterGain = audioCtx.createGain();
+        masterGain.connect(audioCtx.destination);
+
+        compNode = audioCtx.createDynamicsCompressor();
+        warmNode = audioCtx.createBiquadFilter();
+        warmNode.type = "lowshelf";
+        warmNode.frequency.value = 180;
+
+        dipNode = audioCtx.createBiquadFilter();
+        dipNode.type = "peaking";
+        dipNode.frequency.value = 3500;
+        dipNode.Q.value = 1.1;
+
+        lpfNode = audioCtx.createBiquadFilter();
+        lpfNode.type = "lowpass";
+        lpfNode.Q.value = 0.6;
+
+        convolver = audioCtx.createConvolver();
+        convolver.buffer = createCozyRoomIR(audioCtx);
+
+        dryGain = audioCtx.createGain();
+        wetGain = audioCtx.createGain();
+
+        sourceBus.connect(compNode);
+        compNode.connect(warmNode);
+        warmNode.connect(dipNode);
+        dipNode.connect(lpfNode);
+
+        lpfNode.connect(dryGain);
+        lpfNode.connect(convolver);
+        convolver.connect(wetGain);
+
+        dryGain.connect(masterGain);
+        wetGain.connect(masterGain);
+
+        padGain = audioCtx.createGain();
+        padGain.gain.value = 0;
+        padGain.connect(masterGain);
+        currentPadChord = "off";
+
+        startCrossfadeLoop(audioCtx, decoded, sourceBus);
+
+        stopBtn.disabled = false;
+        voteABtn.disabled = false;
+        voteBBtn.disabled = false;
+        voteTieBtn.disabled = false;
+        voteBadBtn.disabled = false;
+        listenBestBtn.disabled = false;
+        listenRawBtn.disabled = false;
+
+        selectListening(currentListening);
+        statusText.textContent = "🎧 A와 B 카드를 번갈아 눌러 들어보신 뒤, 더 편안한 쪽에 투표해 주세요.";
+      } catch (err) {
+        alert("오디오 시작 실패: " + err.message);
+        stopAudio();
+      }
+    }
+
+    function stopAudio() {
+      running = false;
+      if (loopTimerId) { clearInterval(loopTimerId); loopTimerId = null; }
+      activeSources.forEach(s => { try { s.stop(); } catch (_) {} });
+      activeSources = [];
+      padNodes.forEach(n => { try { n.stop(); } catch (_) {} });
+      padNodes = [];
+      if (audioCtx) { audioCtx.close(); audioCtx = null; }
+      startBtn.disabled = false;
+      stopBtn.disabled = true;
+      voteABtn.disabled = true;
+      voteBBtn.disabled = true;
+      voteTieBtn.disabled = true;
+      voteBadBtn.disabled = true;
+      listenBestBtn.disabled = true;
+      listenRawBtn.disabled = true;
+    }
+
+    cardA.onclick = () => selectListening("A");
+    cardB.onclick = () => selectListening("B");
+    listenBestBtn.onclick = () => {
+      selectListening("BEST");
+      statusText.textContent = "🏆 현재까지 학습된 최적 사운드 DNA를 재생 중입니다.";
+    };
+    listenRawBtn.onclick = () => {
+      selectListening("RAW");
+      statusText.textContent = "🎧 가공하지 않은 원본 자연음을 재생 중입니다.";
+    };
+
+    voteABtn.onclick = () => handleVote("A");
+    voteBBtn.onclick = () => handleVote("B");
+    voteTieBtn.onclick = () => handleVote("TIE");
+    voteBadBtn.onclick = () => handleVote("BAD");
+
+    masterVol.oninput = () => {
+      if (audioCtx && masterGain) {
+        masterGain.gain.setTargetAtTime(Number(masterVol.value), audioCtx.currentTime, 0.04);
+      }
+    };
+
+    trackSelect.onchange = () => {
+      customArrayBuffer = null;
+      if (running) startAudio();
+    };
+    localFile.onchange = async (e) => {
+      const f = e.target.files[0];
+      if (!f) return;
+      customFileName = f.name;
+      customArrayBuffer = await f.arrayBuffer();
+      if (running) startAudio();
+    };
+
+    document.getElementById("resetBtn").onclick = () => {
+      round = 1;
+      historyLog = [];
+      rejectedProfiles = [];
+      champion = { lpfHz: 2600, roomMixPct: 25, safetyDipDb: -7, warmBoostDb: 3, comp: "strong", padChord: "cmaj7", padMixPct: 13 };
+      prepareRoundCandidates();
+      statusText.textContent = "1라운드부터 다시 시작합니다.";
+    };
+
+    document.getElementById("copyResultBtn").onclick = async () => {
+      const payload = {
+        completedRounds: historyLog.length,
+        convergedSoundDNA: champion,
+        rejectedCount: rejectedProfiles.length,
+        rejectedSamples: rejectedProfiles.slice(-4),
+        recentHistory: historyLog.slice(-8)
+      };
+      const text = JSON.stringify(payload, null, 2);
+      try {
+        await navigator.clipboard.writeText(text);
+        document.getElementById("copyMsg").textContent = "✅ 복사 완료! 채팅창에 붙여넣어 주세요.";
+      } catch {
+        document.getElementById("copyMsg").textContent = text;
+      }
+    };
+
+    startBtn.onclick = startAudio;
+    stopBtn.onclick = stopAudio;
+    prepareRoundCandidates();
+  </script>
+</body>
+</html>
