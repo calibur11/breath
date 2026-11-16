@@ -140,6 +140,14 @@
           </select>
         </label>
         <label>
+          소리 질감 (음색)
+          <select id="soundProfile">
+            <option value="deep_ocean">깊은 밤바다 (초저음 · 치찰음 제거)</option>
+            <option value="warm_drone">따뜻한 저음 화음 (노이즈 없는 패드)</option>
+            <option value="soft_rain">부드러운 빗소리 (중저역)</option>
+          </select>
+        </label>
+        <label>
           연동 방식 (모드)
           <select id="modeSelect">
             <option value="elastic">고무줄 페이싱 (내 호흡보다 8% 느리게 유도)</option>
@@ -160,8 +168,8 @@
           <input id="sensitivity" type="range" min="1.0" max="8.0" step="0.2" value="3.0" />
         </label>
         <label>
-          변조 폭 / 반응 강도 (<span id="depthVal">85</span>%)
-          <input id="modDepth" type="range" min="20" max="100" step="5" value="85" />
+          변조 폭 / 반응 강도 (<span id="depthVal">45</span>%)
+          <input id="modDepth" type="range" min="15" max="100" step="5" value="45" />
         </label>
       </div>
     </div>
@@ -214,6 +222,7 @@
     const startSimBtn = document.getElementById("startSimBtn");
     const stopBtn = document.getElementById("stopBtn");
     const micSelect = document.getElementById("micSelect");
+    const soundProfileSelect = document.getElementById("soundProfile");
     const modeSelect = document.getElementById("modeSelect");
     const bedVolInput = document.getElementById("bedVol");
     const waveVolInput = document.getElementById("waveVol");
@@ -303,23 +312,45 @@
       bedGain.connect(audioCtx.destination);
       bedSrc.start();
 
-      // Layer 2: 호흡에 반응하는 파도층 (핑크 노이즈 + 가변 필터)
-      const waveSrc = audioCtx.createBufferSource();
-      waveSrc.buffer = createPinkNoiseBuffer(audioCtx, 8);
-      waveSrc.loop = true;
-
+      // Layer 2: 소리 질감에 따른 호흡 반응층
+      const profile = soundProfileSelect.value;
       waveFilter = audioCtx.createBiquadFilter();
       waveFilter.type = "lowpass";
-      waveFilter.frequency.value = 400;
-      waveFilter.Q.value = 0.7;
+      waveFilter.frequency.value = 260;
+      waveFilter.Q.value = 0.5;
 
       waveGain = audioCtx.createGain();
-      waveGain.gain.value = Number(waveVolInput.value) * 0.4;
+      waveGain.gain.value = Number(waveVolInput.value) * 0.7;
 
-      waveSrc.connect(waveFilter);
+      if (profile === "warm_drone") {
+        // 노이즈 없는 따뜻한 저음 5도 화음 (A2 110Hz + E3 164.8Hz)
+        const osc1 = audioCtx.createOscillator();
+        const osc2 = audioCtx.createOscillator();
+        osc1.type = "sine";
+        osc2.type = "sine";
+        osc1.frequency.value = 110;
+        osc2.frequency.value = 164.81;
+
+        const oscMix = audioCtx.createGain();
+        oscMix.gain.value = 0.22;
+
+        osc1.connect(oscMix);
+        osc2.connect(oscMix);
+        oscMix.connect(waveFilter);
+        osc1.start();
+        osc2.start();
+      } else {
+        const waveSrc = audioCtx.createBufferSource();
+        waveSrc.buffer = profile === "soft_rain"
+          ? createPinkNoiseBuffer(audioCtx, 8)
+          : createBrownNoiseBuffer(audioCtx, 8);
+        waveSrc.loop = true;
+        waveSrc.connect(waveFilter);
+        waveSrc.start();
+      }
+
       waveFilter.connect(waveGain);
       waveGain.connect(audioCtx.destination);
-      waveSrc.start();
     }
 
     async function refreshMicList() {
@@ -519,16 +550,24 @@
         ? `${(60 / currentUserPeriod).toFixed(1)} 회/분`
         : "측정 중...";
 
-      // 파도층(Layer 2) 볼륨과 필터 변조
+      // 파도층(Layer 2) 볼륨과 필터 변조: 치찰음 없이 좁고 포근한 안전 밴드 유지
       const baseWaveVol = Number(waveVolInput.value);
       const depth = Number(depthInput.value) / 100;
+      const profile = soundProfileSelect.value;
 
-      const volMin = baseWaveVol * (1 - 0.85 * depth);
-      const volMax = baseWaveVol * (1 + 0.9 * depth);
+      const volMin = baseWaveVol * (1 - 0.35 * depth);
+      const volMax = baseWaveVol * (1 + 0.35 * depth);
       const modWaveVol = Math.max(0.01, volMin + (volMax - volMin) * outputWave);
 
-      const cutMin = 170;
-      const cutMax = 170 + 1650 * depth;
+      let cutMin = 130;
+      let cutMax = 130 + 270 * depth; // 깊은 밤바다: 130Hz ~ 400Hz (치찰음 없음)
+      if (profile === "soft_rain") {
+        cutMin = 180;
+        cutMax = 180 + 360 * depth; // 부드러운 빗소리: 180Hz ~ 540Hz
+      } else if (profile === "warm_drone") {
+        cutMin = 160;
+        cutMax = 160 + 260 * depth; // 따뜻한 화음: 160Hz ~ 420Hz
+      }
       const modCutoff = cutMin + (cutMax - cutMin) * outputWave;
 
       const now = audioCtx.currentTime;
